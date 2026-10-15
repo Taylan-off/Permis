@@ -20,7 +20,7 @@ renderer.localClippingEnabled = true;
 const scene = new THREE.Scene();
 
 const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.05, 12000);
-camera.position.set(6.4, 3.6, 4.2);
+camera.position.set(-7.2, 3.6, 3.4);
 
 const controls = new OrbitControls(camera, canvas);
 controls.target.set(0, 0.8, 0);
@@ -430,9 +430,10 @@ document.getElementById('panel-toggle').addEventListener('click', () => panel.cl
 // ---------- Vues prédéfinies ----------
 // Vues choisies dans les directions dégagées de la forêt (côté passager, axe de la route).
 const VIEWS = {
-  front: { pos: [6.4, 3.6, 4.2], target: [0, 0.7, 0] },
-  rear: { pos: [-6.4, 3.6, 4.2], target: [0, 0.7, 0] },
-  side: { pos: [0.3, 3.0, 7.0], target: [0, 0.7, 0] },
+  // Positions relevées comme dégagées (aucun arbre entre la caméra et la voiture).
+  front: { pos: [8.0, 3.2, 0.4], target: [0, 0.7, 0] },
+  rear: { pos: [-7.2, 3.6, 3.4], target: [0, 0.7, 0] },
+  side: { pos: [-5.6, 2.2, 3.3], target: [0, 0.7, 0] },
   top: { pos: [0.01, 12, 0.01], target: [0, 0.5, 0] },
   tailgate: { pos: [-3.6, 1.45, 0.3], target: [-0.6, 0.8, 0], open: 'tailgate' },
   inside: { pos: [-0.5, 1.3, 0], target: [-3.5, 0.8, 0], open: 'tailgate', firstPerson: true },
