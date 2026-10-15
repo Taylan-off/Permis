@@ -1,33 +1,94 @@
 import * as THREE from 'three';
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { materials as M } from './materials.js';
 import { box, cylinderZ } from './geometry.js';
 
 /*
- * Aménagement couchage, aux cotes relevées sur le modèle 3D du Touran
- * (repère scène : X vers l'avant, Y vers le haut, Z vers le côté passager).
+ * Aménagement couchage, construit sur le gabarit relevé par lancer de rayons sur
+ * le modèle 3D (banquette retirée). Repère : X avant, Y haut, Z côté passager.
  *
- *  - plancher du coffre : y = 0,475 m (de x = -1,85 à x = -1,15)
- *  - plancher sous l'ancienne banquette : y ≈ 0,60 m (x = -1,10 à -0,40)
- *  - face interne du hayon fermé : x = -1,92 m
- *  - dossiers des sièges avant (reculés) : x = -0,25 m
- *  - largeur libre entre passages de roue : 0,98 m jusqu'à y ≈ 0,80 m,
- *    puis 1,30 m au-dessus (x > -1,42) ; 0,98 m jusqu'à y ≈ 1,05 m tout à l'arrière
- *  - plafond : 1,47 m (arrière) à 1,60 m (milieu)
+ *  Plancher plat          y = 0,475 m   de x = -1,85 à -0,55
+ *  Puits à pieds (rang 2) y = 0,31 m    de x = -0,50 à -0,28, |z| ≥ 0,25 (tunnel au centre à 0,42)
+ *  Passages de roue       |z| ≤ 0,49    de x = -1,85 à -1,10, jusqu'à y ≈ 0,85
+ *  Largeur au-dessus      |z| ≤ 0,59 à x = -1,05, ≤ 0,63 au-delà (y 0,8 → 1,0)
+ *  Zone arrière (custode) |z| ≤ 0,49 pour x ≤ -1,65 jusqu'à y = 1,0
+ *  Dossiers avant         x = -0,15 (y 0,6) à -0,28 (y 1,0)
+ *  Face interne du hayon  x = -1,94 ;  plafond 1,46 (arrière) → 1,62 m
  */
 export const LAYOUT = {
-  trunkFloor: 0.475,
-  seatRowFloor: 0.6,
-  platformTop: 0.85,
+  floor: 0.475,
+  footwell: 0.31,
+  platformTop: 0.86,
   plate: 0.018,
-  mattress: 0.08,
+  mattress: 0.1,
   rearX: -1.9,
-  stepX: -1.42, // à partir d'ici le plateau peut passer au-dessus des passages de roue
-  frontX: -0.26, // dossiers des sièges avant
-  extensionX: 0.09, // bout de la rallonge (sièges avant avancés de 20 cm)
-  narrowHalfWidth: 0.47,
-  wideHalfWidth: 0.63,
-  roofMin: 1.47,
+  archEndX: -1.1,
+  frontX: -0.3,
+  extensionX: 0.07,
+  narrowHalf: 0.47,
+  midHalf: 0.57,
+  wideHalf: 0.6,
+  roofMin: 1.46,
 };
+
+/** Plaque de contreplaqué : faces en placage, chants en plis. */
+function plywood(min, max) {
+  const size = [max[0] - min[0], max[1] - min[1], max[2] - min[2]];
+  const geo = new THREE.BoxGeometry(...size);
+  // Les 6 groupes de faces de BoxGeometry : +x, -x, +y, -y, +z, -z.
+  const thin = size.indexOf(Math.min(...size));
+  const mats = [0, 1, 2, 3, 4, 5].map((f) => (Math.floor(f / 2) === thin ? M.wood : M.woodEdge));
+  const mesh = new THREE.Mesh(geo, mats);
+  mesh.position.set(min[0] + size[0] / 2, min[1] + size[1] / 2, min[2] + size[2] / 2);
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+  return mesh;
+}
+
+function rounded(min, max, radius, material, segments = 3) {
+  const size = [max[0] - min[0], max[1] - min[1], max[2] - min[2]];
+  const geo = new RoundedBoxGeometry(size[0], size[1], size[2], segments, Math.min(radius, Math.min(...size) / 2));
+  const mesh = new THREE.Mesh(geo, material);
+  mesh.position.set(min[0] + size[0] / 2, min[1] + size[1] / 2, min[2] + size[2] / 2);
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+  return mesh;
+}
+
+/** Poignée en arceau (inox). */
+function handle(center, axis = 'x', length = 0.1) {
+  const g = new THREE.Group();
+  const bar = new THREE.Mesh(new THREE.CylinderGeometry(0.005, 0.005, length, 10), M.steel);
+  bar.rotation.z = axis === 'x' ? Math.PI / 2 : 0;
+  bar.rotation.x = axis === 'z' ? Math.PI / 2 : bar.rotation.x;
+  g.add(bar);
+  for (const s of [-1, 1]) {
+    const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.004, 0.004, 0.025, 8), M.steel);
+    if (axis === 'x') { leg.position.set(s * length / 2, 0, 0); leg.rotation.x = Math.PI / 2; leg.position.z = -0.012; }
+    else { leg.position.set(0, 0, s * length / 2); leg.rotation.z = Math.PI / 2; leg.position.x = 0.012; }
+    g.add(leg);
+  }
+  g.position.set(...center);
+  return g;
+}
+
+/** Caisse de rangement plastique avec couvercle et poignées latérales. */
+function crate(min, max, mat) {
+  const g = new THREE.Group();
+  const size = [max[0] - min[0], max[1] - min[1], max[2] - min[2]];
+  const body = rounded(min, [max[0], max[1] - 0.025, max[2]], 0.012, mat, 2);
+  g.add(body);
+  g.add(rounded([min[0] - 0.006, max[1] - 0.028, min[2] - 0.006], [max[0] + 0.006, max[1], max[2] + 0.006], 0.01, M.crateLid, 2));
+  // Nervures verticales.
+  for (let i = 1; i < 4; i++) {
+    const x = min[0] + (size[0] * i) / 4;
+    g.add(box([x - 0.004, min[1] + 0.02, min[2] - 0.003], [x + 0.004, max[1] - 0.04, min[2]], mat));
+    g.add(box([x - 0.004, min[1] + 0.02, max[2]], [x + 0.004, max[1] - 0.04, max[2] + 0.003], mat));
+  }
+  // Poignées en creux aux extrémités (bandeau sombre).
+  for (const x of [min[0] - 0.001, max[0]]) g.add(box([x, max[1] - 0.09, min[2] + size[2] / 2 - 0.05], [x + 0.001, max[1] - 0.06, min[2] + size[2] / 2 + 0.05], M.crateLid));
+  return g;
+}
 
 export function buildInterior() {
   const L = LAYOUT;
@@ -36,95 +97,141 @@ export function buildInterior() {
   const top = L.platformTop;
   const under = top - L.plate;
 
-  // ── Plateforme ──────────────────────────────────────────────────────────
+  // ── Structure ────────────────────────────────────────────────────────────
   groups.bed = new THREE.Group();
   const bed = groups.bed;
-  bed.add(box([L.rearX, under, -L.narrowHalfWidth], [L.stepX, top, L.narrowHalfWidth], M.wood));
-  bed.add(box([L.stepX, under, -L.wideHalfWidth], [L.frontX, top, L.wideHalfWidth], M.wood));
-  // Panneaux porteurs longitudinaux (18 mm) posés sur le plancher, de part et d'autre.
-  for (const s of [-1, 1]) {
-    const z0 = s * 0.45;
-    bed.add(box([L.rearX, L.trunkFloor, Math.min(z0, z0 + 0.018)], [-1.14, under, Math.max(z0, z0 + 0.018)], M.woodDark));
-    bed.add(box([-1.14, L.seatRowFloor, Math.min(z0, z0 + 0.018)], [L.frontX, under, Math.max(z0, z0 + 0.018)], M.woodDark));
-  }
-  // Cloison centrale entre cuisine et rangements, zone coffre uniquement.
-  bed.add(box([L.rearX, L.trunkFloor, -0.009], [-1.14, under, 0.009], M.woodDark));
-  // Traverse avant.
-  bed.add(box([L.frontX - 0.018, L.seatRowFloor, -0.45], [L.frontX, under, 0.45], M.woodDark));
-  // Traverse au changement de largeur (appui sur les passages de roue).
-  bed.add(box([L.stepX - 0.018, 0.8, -L.wideHalfWidth], [L.stepX, under, L.wideHalfWidth], M.woodDark));
+  // Plateaux (trois largeurs pour épouser les passages de roue et la custode).
+  bed.add(plywood([L.rearX, under, -L.narrowHalf], [L.archEndX, top, L.narrowHalf]));
+  bed.add(plywood([L.archEndX, under, -L.midHalf], [-0.95, top, L.midHalf]));
+  bed.add(plywood([-0.95, under, -L.wideHalf], [L.frontX, top, L.wideHalf]));
+  // Trappes : rainures (fines bandes sombres) sur le plateau avant.
+  for (const x of [-0.78, -0.34]) bed.add(box([x - 0.002, top, -0.56], [x + 0.002, top + 0.0005, 0.56], M.trim));
+  for (const z of [-0.03, 0.03]) bed.add(box([-0.78, top, z - 0.002], [-0.34, top + 0.0005, z + 0.002], M.trim));
+  // Longerons sur le plancher plat (en dedans des passages de roue), de l'arrière au puits.
+  for (const z of [-0.45, 0.43]) bed.add(plywood([L.rearX + 0.02, L.floor, z], [-0.52, under, z + 0.018]));
+  // Pieds avant dans le puits à pieds (de part et d'autre du tunnel).
+  for (const z of [-0.5, 0.38]) bed.add(plywood([-0.36, L.footwell, z], [-0.34, under, z + 0.12]));
+  // Traverse avant au-dessus du puits, et traverse sur le changement de largeur.
+  bed.add(plywood([L.frontX - 0.02, under - 0.08, -0.58], [L.frontX, under, 0.58]));
+  bed.add(plywood([L.archEndX - 0.018, L.floor, -0.45], [L.archEndX, under, 0.45]));
+  // Cloison centrale arrière (cuisine / rangements).
+  bed.add(plywood([L.rearX + 0.02, L.floor, -0.009], [L.archEndX, under, 0.009]));
+  // Tasseaux de renfort sous les plateaux.
+  for (const x of [-1.7, -1.4, -0.7, -0.45]) bed.add(box([x - 0.015, under - 0.03, -0.43], [x + 0.015, under, 0.41], M.woodDark));
   root.add(bed);
 
-  // Rallonge : volet rabattable vers l'avant quand les sièges sont avancés.
+  // Rallonge rabattable (sièges avant avancés).
   groups.extension = new THREE.Group();
-  groups.extension.add(box([L.frontX, under, -0.55], [L.extensionX, top, 0.55], M.wood));
-  groups.extension.add(box([L.frontX - 0.01, under - 0.02, -0.56], [L.frontX + 0.03, top + 0.005, 0.56], M.chrome)); // charnière piano
+  groups.extension.add(plywood([L.frontX, under, -0.55], [L.extensionX, top, 0.55]));
+  const hinge = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.008, 1.08, 12), M.steel);
+  hinge.rotation.x = Math.PI / 2;
+  hinge.position.set(L.frontX, top - 0.002, 0);
+  groups.extension.add(hinge);
   groups.extension.visible = false;
   root.add(groups.extension);
 
-  // ── Matelas, couette, oreillers ─────────────────────────────────────────
+  // ── Couchage ─────────────────────────────────────────────────────────────
   groups.mattress = new THREE.Group();
   const mt = top + L.mattress;
-  groups.mattress.add(box([L.rearX + 0.02, top, -L.narrowHalfWidth + 0.02], [L.stepX, mt, L.narrowHalfWidth - 0.02], M.mattress));
-  groups.mattress.add(box([L.stepX, top, -L.wideHalfWidth + 0.02], [L.frontX - 0.02, mt, L.wideHalfWidth - 0.02], M.mattress));
-  groups.mattress.add(box([L.rearX + 0.05, mt, -0.42], [-0.75, mt + 0.05, 0.42], M.blanket));
-  groups.mattress.add(box([-0.72, mt, 0.04], [-0.3, mt + 0.09, 0.56], M.pillow));
-  groups.mattress.add(box([-0.72, mt, -0.56], [-0.3, mt + 0.09, -0.04], M.pillow));
+  groups.mattress.add(rounded([L.rearX + 0.03, top, -L.narrowHalf + 0.02], [L.archEndX + 0.01, mt, L.narrowHalf - 0.02], 0.035, M.mattress));
+  groups.mattress.add(rounded([L.archEndX, top, -L.midHalf + 0.02], [-0.95 + 0.01, mt, L.midHalf - 0.02], 0.035, M.mattress));
+  groups.mattress.add(rounded([-0.95, top, -L.wideHalf + 0.02], [L.frontX - 0.02, mt, L.wideHalf - 0.02], 0.035, M.mattress));
+  // Couette repliée sur les deux tiers arrière, bord roulé.
+  groups.mattress.add(rounded([L.rearX + 0.08, mt - 0.01, -0.42], [-0.8, mt + 0.045, 0.42], 0.02, M.blanket));
+  groups.mattress.add(rounded([-0.86, mt - 0.005, -0.42], [-0.74, mt + 0.07, 0.42], 0.03, M.blanket));
+  // Oreillers.
+  groups.mattress.add(rounded([-0.72, mt, 0.05], [-0.32, mt + 0.1, 0.56], 0.045, M.pillow));
+  groups.mattress.add(rounded([-0.72, mt, -0.56], [-0.32, mt + 0.1, -0.05], 0.045, M.pillow));
   root.add(groups.mattress);
 
   groups.mattressExtension = new THREE.Group();
-  groups.mattressExtension.add(box([L.frontX - 0.02, top, -0.53], [L.extensionX - 0.02, mt, 0.53], M.mattress));
+  groups.mattressExtension.add(rounded([L.frontX - 0.02, top, -0.53], [L.extensionX - 0.02, mt, 0.53], 0.035, M.mattress));
   groups.mattressExtension.visible = false;
   root.add(groups.mattressExtension);
 
-  // ── Module cuisine coulissant (côté passager, sort par le hayon) ────────
+  // ── Module cuisine coulissant (côté passager, sort par le hayon) ─────────
   groups.kitchen = new THREE.Group();
   const drawer = new THREE.Group();
-  const kx0 = L.rearX + 0.02;
-  const kx1 = -1.16;
+  const kx0 = L.rearX + 0.03;
+  const kx1 = L.archEndX - 0.03;
   const kz0 = 0.03;
-  const kz1 = 0.44;
-  const ky0 = L.trunkFloor + 0.015;
-  const ky1 = under - 0.015;
-  drawer.add(box([kx0, ky0, kz0], [kx1, ky0 + 0.015, kz1], M.woodDark)); // fond
-  drawer.add(box([kx0, ky0, kz0], [kx1, ky1, kz0 + 0.015], M.woodDark)); // paroi
-  drawer.add(box([kx0, ky0, kz1 - 0.015], [kx1, ky1, kz1], M.woodDark)); // paroi
-  drawer.add(box([kx0, ky0, kz0], [kx0 + 0.018, ky1, kz1], M.wood)); // façade (côté hayon)
-  drawer.add(box([kx1 - 0.015, ky0, kz0], [kx1, ky1, kz1], M.woodDark)); // fond du tiroir
-  drawer.add(box([kx0 - 0.02, ky0 + 0.14, 0.18], [kx0, ky0 + 0.17, 0.29], M.chrome)); // poignée
-  // Réchaud gaz un feu posé dans le tiroir.
-  drawer.add(box([kx0 + 0.05, ky0 + 0.015, kz0 + 0.05], [kx0 + 0.33, ky0 + 0.065, kz1 - 0.05], M.steel));
-  const burner = cylinderZ(0.065, 0.015, M.trim, 24);
+  const kz1 = 0.42;
+  const ky0 = L.floor + 0.012;
+  const ky1 = under - 0.012;
+  drawer.add(plywood([kx0, ky0, kz0], [kx1, ky0 + 0.012, kz1])); // fond
+  drawer.add(plywood([kx0, ky0, kz0], [kx1, ky1, kz0 + 0.012])); // joue
+  drawer.add(plywood([kx0, ky0, kz1 - 0.012], [kx1, ky1, kz1])); // joue
+  drawer.add(plywood([kx1 - 0.012, ky0, kz0], [kx1, ky1, kz1])); // dos
+  drawer.add(plywood([kx0, ky0, kz0], [kx0 + 0.018, ky1, kz1])); // façade
+  drawer.add(handle([kx0 - 0.013, ky0 + 0.2, (kz0 + kz1) / 2], 'z', 0.12));
+  // Glissières inox sous le tiroir.
+  for (const z of [kz0 + 0.03, kz1 - 0.03]) drawer.add(box([kx0, L.floor + 0.002, z - 0.006], [kx1, ky0, z + 0.006], M.steel));
+  // Réchaud à cartouche : corps, grille, bouton.
+  const stove = new THREE.Group();
+  stove.position.set(kx0 + 0.2, ky0 + 0.012, (kz0 + kz1) / 2);
+  stove.add(rounded([-0.17, 0, -0.14], [0.17, 0.05, 0.14], 0.01, M.steel, 2));
+  const burner = cylinderZ(0.05, 0.012, M.trim, 24);
   burner.rotation.x = Math.PI / 2;
-  burner.position.set(kx0 + 0.19, ky0 + 0.075, (kz0 + kz1) / 2);
-  drawer.add(burner);
-  // Jerrican d'eau 10 L couché.
-  drawer.add(box([kx0 + 0.38, ky0 + 0.015, kz0 + 0.06], [kx0 + 0.64, ky0 + 0.19, kz1 - 0.06], M.jerrycan));
-  drawer.add(box([kx0 + 0.46, ky0 + 0.19, 0.2], [kx0 + 0.54, ky0 + 0.22, 0.27], M.trim));
-  // Boîte couverts / vaisselle.
-  drawer.add(box([kx0 + 0.66, ky0 + 0.015, kz0 + 0.05], [kx1 - 0.03, ky0 + 0.15, kz1 - 0.05], M.crate2));
+  burner.position.y = 0.055;
+  stove.add(burner);
+  for (let i = 0; i < 4; i++) {
+    const rod = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.004, 0.006), M.trim);
+    rod.position.y = 0.065;
+    rod.rotation.y = (i * Math.PI) / 4;
+    stove.add(rod);
+  }
+  const knob = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.02, 12), M.trim);
+  knob.rotation.z = Math.PI / 2;
+  knob.position.set(0.17, 0.025, 0.08);
+  stove.add(knob);
+  const cartridge = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.15, 16), M.chrome);
+  cartridge.rotation.z = Math.PI / 2;
+  cartridge.position.set(0.05, 0.03, -0.1);
+  stove.add(cartridge);
+  drawer.add(stove);
+  // Jerrican d'eau 10 L avec bouchon et robinet.
+  drawer.add(rounded([kx0 + 0.44, ky0 + 0.012, kz0 + 0.05], [kx0 + 0.66, ky0 + 0.21, kz1 - 0.05], 0.015, M.jerrycan, 2));
+  const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.022, 0.03, 16), M.trim);
+  cap.position.set(kx0 + 0.6, ky0 + 0.225, (kz0 + kz1) / 2);
+  drawer.add(cap);
+  // Planche à découper et boîte à couverts.
+  drawer.add(plywood([kx0 + 0.44, ky0 + 0.21, kz0 + 0.06], [kx0 + 0.66, ky0 + 0.22, kz1 - 0.06]));
+  drawer.add(crate([kx0 + 0.52, ky0 + 0.012, kz0 + 0.0], [kx1 - 0.03, ky0 + 0.14, kz1 - 0.012], M.crate2));
   groups.kitchen.add(drawer);
   groups.kitchenDrawer = drawer;
   root.add(groups.kitchen);
 
-  // ── Rangements ──────────────────────────────────────────────────────────
+  // ── Rangements ───────────────────────────────────────────────────────────
   groups.storage = new THREE.Group();
-  // Caisses côté conducteur, zone coffre.
-  groups.storage.add(box([L.rearX + 0.03, L.trunkFloor + 0.01, -0.44], [-1.5, L.trunkFloor + 0.16, -0.03], M.crate));
-  groups.storage.add(box([L.rearX + 0.03, L.trunkFloor + 0.17, -0.44], [-1.5, L.trunkFloor + 0.32, -0.03], M.crate2));
-  groups.storage.add(box([-1.47, L.trunkFloor + 0.01, -0.44], [-1.17, L.trunkFloor + 0.3, -0.03], M.crate));
-  // Deux tiroirs plats sous l'ancienne banquette, accessibles par les portes arrière.
-  const drawerL = new THREE.Group();
-  drawerL.add(box([-1.1, L.seatRowFloor + 0.01, -0.44], [-0.3, under - 0.015, -0.03], M.woodDark));
-  drawerL.add(box([-1.1, L.seatRowFloor + 0.01, -0.46], [-0.3, under - 0.015, -0.44], M.wood)); // façade côté porte
-  drawerL.add(box([-0.76, L.seatRowFloor + 0.1, -0.475], [-0.64, L.seatRowFloor + 0.13, -0.46], M.chrome));
-  const drawerR = new THREE.Group();
-  drawerR.add(box([-1.1, L.seatRowFloor + 0.01, 0.03], [-0.3, under - 0.015, 0.44], M.woodDark));
-  drawerR.add(box([-1.1, L.seatRowFloor + 0.01, 0.44], [-0.3, under - 0.015, 0.46], M.wood));
-  drawerR.add(box([-0.76, L.seatRowFloor + 0.1, 0.46], [-0.64, L.seatRowFloor + 0.13, 0.475], M.chrome));
-  groups.storage.add(drawerL, drawerR);
-  groups.drawerL = drawerL;
-  groups.drawerR = drawerR;
+  // Caisses empilées côté conducteur, zone coffre (entre longeron et cloison).
+  groups.storage.add(crate([L.rearX + 0.05, L.floor + 0.005, -0.42], [-1.5, L.floor + 0.17, -0.03], M.crate));
+  groups.storage.add(crate([L.rearX + 0.05, L.floor + 0.175, -0.42], [-1.5, L.floor + 0.34, -0.03], M.crate2));
+  groups.storage.add(crate([-1.47, L.floor + 0.005, -0.42], [L.archEndX - 0.03, L.floor + 0.3, -0.03], M.crate));
+  // Deux tiroirs plats sous le plateau avant, accessibles par les portes arrière.
+  const makeSideDrawer = (sign) => {
+    const d = new THREE.Group();
+    const zIn = sign * 0.03;
+    const zOut = sign * 0.55;
+    const z0 = Math.min(zIn, zOut);
+    const z1 = Math.max(zIn, zOut);
+    const x0 = -0.78;
+    const x1 = -0.36;
+    const y0 = L.floor + 0.012;
+    const y1 = under - 0.012;
+    d.add(plywood([x0, y0, z0], [x1, y0 + 0.012, z1]));
+    d.add(plywood([x0, y0, z0], [x0 + 0.012, y1 - 0.08, z1]));
+    d.add(plywood([x1 - 0.012, y0, z0], [x1, y1 - 0.08, z1]));
+    const faceZ = sign > 0 ? [z1 - 0.018, z1] : [z0, z0 + 0.018];
+    d.add(plywood([x0, y0, faceZ[0]], [x1, y1, faceZ[1]]));
+    const backZ = sign > 0 ? [z0, z0 + 0.012] : [z1 - 0.012, z1];
+    d.add(plywood([x0, y0, backZ[0]], [x1, y1 - 0.08, backZ[1]]));
+    d.add(handle([(x0 + x1) / 2, y0 + 0.2, sign > 0 ? z1 + 0.013 : z0 - 0.013], 'x', 0.12));
+    for (const x of [x0 + 0.03, x1 - 0.03]) d.add(box([x - 0.006, L.floor + 0.002, z0], [x + 0.006, y0, z1], M.steel));
+    return d;
+  };
+  groups.drawerL = makeSideDrawer(-1);
+  groups.drawerR = makeSideDrawer(1);
+  groups.storage.add(groups.drawerL, groups.drawerR);
   root.add(groups.storage);
 
   return { root, groups };
@@ -133,15 +240,13 @@ export function buildInterior() {
 /** Cotes utiles de l'aménagement, pour le panneau d'information. */
 export function layoutSpecs() {
   const L = LAYOUT;
-  const bedLength = L.frontX - L.rearX;
-  const bedLengthExt = L.extensionX - L.rearX;
+  const f = (v) => v.toFixed(2).replace('.', ',');
   return [
-    ['Longueur couchage', `${bedLength.toFixed(2).replace('.', ',')} m`],
-    ['… avec rallonge, sièges avancés', `${bedLengthExt.toFixed(2).replace('.', ',')} m`],
-    ['Largeur à la tête / aux pieds', `${(2 * L.wideHalfWidth).toFixed(2).replace('.', ',')} / ${(2 * L.narrowHalfWidth).toFixed(2).replace('.', ',')} m`],
-    ['Hauteur du plateau', `${L.platformTop.toFixed(2).replace('.', ',')} m`],
-    ['Hauteur libre sur matelas', `${(L.roofMin - L.platformTop - L.mattress).toFixed(2).replace('.', ',')} à ${(1.6 - L.platformTop - L.mattress).toFixed(2).replace('.', ',')} m`],
-    ['Hauteur de rangement (coffre)', `${(L.platformTop - L.plate - L.trunkFloor).toFixed(2).replace('.', ',')} m`],
-    ['Hauteur de rangement (banquette)', `${(L.platformTop - L.plate - L.seatRowFloor).toFixed(2).replace('.', ',')} m`],
+    ['Longueur couchage', `${f(L.frontX - L.rearX)} m`],
+    ['… avec rallonge, sièges avancés', `${f(L.extensionX - L.rearX)} m`],
+    ['Largeur à la tête / aux pieds', `${f(2 * L.wideHalf)} / ${f(2 * L.narrowHalf)} m`],
+    ['Hauteur du plateau', `${f(L.platformTop)} m`],
+    ['Hauteur libre sur matelas', `${f(L.roofMin - L.platformTop - L.mattress)} à ${f(1.62 - L.platformTop - L.mattress)} m`],
+    ['Hauteur de rangement sous plateau', `${f(L.platformTop - L.plate - L.floor)} m`],
   ];
 }

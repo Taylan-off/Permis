@@ -464,7 +464,7 @@ export function lightingForHour(hour) {
   const dusk = smoothstep(-12, -2, elevation) * (1 - smoothstep(0, 14, elevation)); // crépuscule
   const night = 1 - day;
   const sunColor = elevation > -2 ? mixColor('#ff9a4a', '#fff4e0', high) : new THREE.Color('#9fb4ff');
-  const sunIntensity = elevation > -2 ? 1.9 + 1.5 * high : 0.35;
+  const sunIntensity = elevation > -2 ? 1.6 + 1.0 * high : 0.35;
   const hemiSky = mixColor('#1b2644', '#8c9fd0', day).lerp(new THREE.Color('#bcd7ff'), high);
   const hemiGround = mixColor('#0a0c10', '#4a3c2a', day).lerp(new THREE.Color('#4a5a35'), high);
   const fog = mixColor('#0b1020', '#d6b08a', day).lerp(new THREE.Color('#c7d6e4'), high);
@@ -474,16 +474,16 @@ export function lightingForHour(hour) {
     hemi: { sky: hemiSky, ground: hemiGround, intensity: 0.12 + 0.45 * day },
     fog: { color: fog, near: 40 + 50 * day, far: 420 + 230 * day },
     sky: {
-      turbidity: night > 0.5 ? 2 : 10 - 6.5 * high,
-      rayleigh: night > 0.5 ? 0.5 : 3.5 - 1.9 * high,
-      mie: night > 0.5 ? 0.002 : 0.026 - 0.022 * high,
-      mieG: 0.7 + 0.16 * day,
+      turbidity: night > 0.5 ? 2 : 8 - 5 * high,
+      rayleigh: night > 0.5 ? 0.5 : 3.0 - 1.6 * high,
+      mie: night > 0.5 ? 0.002 : 0.012 - 0.009 * high,
+      mieG: 0.7 + 0.1 * day,
     },
-    exposure: 1.2 - 0.38 * high,
-    envIntensity: 0.6 + 0.3 * day,
+    exposure: 1.15 - 0.4 * high,
+    envIntensity: 0.55 + 0.25 * day,
     stars: 1 - smoothstep(-9, 1, elevation),
     water: mixColor('#0a1a28', '#2a4a5a', day).lerp(new THREE.Color('#1f4f5e'), high),
-    cabin: 1.0 + 0.6 * day * (1 - high) + 0.0 * high,
+    cabin: 2.6 + 1.2 * day,
     lightsAuto: elevation < 14,
     dusk,
   };

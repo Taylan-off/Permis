@@ -25,24 +25,44 @@ export const PART_NODES = {
   doorRL: { node: 'door_dside_r', axis: 'z', open: -1.25 },
   doorRR: { node: 'door_pside_r', axis: 'z', open: 1.25 },
   tailgate: { node: 'boot', axis: 'x', open: -1.45 },
-  // Le capot n'existe pas comme pièce dans le mod : il est découpé du châssis
-  // au chargement (voir extractBonnet) et pivote autour de son bord arrière.
-  bonnet: { node: 'bonnet', axis: 'z', open: 0.85 },
 };
 
 /** Sous-maillages du châssis qui contiennent les sièges (identifiés par rendu isolé). */
 const SEAT_MESHES = ['chassis_6', 'chassis_19'];
-/** Les triangles dont le centre est derrière cette abscisse appartiennent aux sièges arrière. */
-const REAR_SEAT_SPLIT_X = -0.35;
+/** Volume des sièges arrière (banquette rang 2) et des sièges avant, en espace monde. */
+const isRearSeat = (x, y, z) => x < -0.35 && x > -1.3 && Math.abs(z) < 0.62 && y > 0.42 && y < 1.4;
+const isFrontSeat = (x, y, z) => x >= -0.35 && x < 0.55 && Math.abs(z) < 0.56 && y > 0.42 && y < 1.4;
 /** Avance des sièges avant en mode couchage (m). */
 export const FRONT_SEAT_SLIDE = 0.2;
 
 export const paintMaterial = new THREE.MeshPhysicalMaterial({
   color: '#2b5797',
-  metalness: 0.6,
-  roughness: 0.32,
+  metalness: 0.55,
+  roughness: 0.42,
+  clearcoat: 0.9,
+  clearcoatRoughness: 0.18,
+});
+
+/** Vitrage d'optique (phares, feux) : couvercle clair, presque invisible. */
+const lampCoverMaterial = new THREE.MeshPhysicalMaterial({
+  color: '#dfe8ef',
+  metalness: 0,
+  roughness: 0.04,
+  transparent: true,
+  opacity: 0.14,
   clearcoat: 1,
-  clearcoatRoughness: 0.06,
+  depthWrite: false,
+});
+
+/** Vitre de compteur et autres verres intérieurs : quasi transparents, sans reflet marqué. */
+const innerGlassMaterial = new THREE.MeshPhysicalMaterial({
+  color: '#ffffff',
+  metalness: 0,
+  roughness: 0.3,
+  transparent: true,
+  opacity: 0.08,
+  envMapIntensity: 0.15,
+  depthWrite: false,
 });
 
 const glassMaterial = new THREE.MeshPhysicalMaterial({
@@ -58,7 +78,7 @@ const glassMaterial = new THREE.MeshPhysicalMaterial({
 const xrayMaterial = new THREE.MeshStandardMaterial({
   color: '#9fc5ff',
   transparent: true,
-  opacity: 0.1,
+  opacity: 0.3,
   depthWrite: false,
   side: THREE.DoubleSide,
 });
@@ -85,7 +105,12 @@ function upgradeMaterial(mesh) {
         emissiveIntensity: 0.15,
       });
     } else {
-      mesh.material = glassMaterial;
+      // Vitres de carrosserie, couvercles d'optiques ou verre intérieur ?
+      const owner = mesh.parent?.name ?? '';
+      const c = new THREE.Box3().setFromObject(mesh).getCenter(new THREE.Vector3());
+      if (/^(headlight|taillight|extralight|indicator|brakelight|reversinglight|platelight)/.test(owner)) mesh.material = lampCoverMaterial;
+      else if (Math.abs(c.z) < 0.62 && c.x > -0.4 && c.x < 1.1 && c.y < 1.26) mesh.material = innerGlassMaterial;
+      else mesh.material = glassMaterial;
     }
     mesh.renderOrder = 2;
     return;
@@ -93,8 +118,8 @@ function upgradeMaterial(mesh) {
   const m = new THREE.MeshStandardMaterial({
     map: src.map ?? null,
     color: src.color ?? new THREE.Color('#ffffff'),
-    roughness: 0.85,
-    metalness: 0.05,
+    roughness: 0.8,
+    metalness: 0.0,
     transparent: src.transparent,
     alphaTest: src.alphaTest,
     side: src.side,
@@ -110,51 +135,12 @@ function upgradeMaterial(mesh) {
     m.roughness = 0.3;
   }
   if (shader.startsWith('vehicle_interior')) {
-    // Les textures intérieures du mod sont très sombres : on les éclaircit un peu.
-    m.color = new THREE.Color('#c8c8c8');
+    // Les textures intérieures du mod sont très sombres : on les éclaircit nettement.
+    m.color = new THREE.Color('#f2f2f2');
+    m.roughness = 0.8;
+    m.envMapIntensity = 0.5;
   }
   mesh.material = m;
-}
-
-/**
- * Sépare un maillage en deux selon l'abscisse monde du centre de chaque triangle.
- * Retourne { behind, ahead } ; les attributs sont partagés, seuls les index diffèrent.
- */
-function splitMeshByWorldX(mesh, threshold) {
-  const geo = mesh.geometry;
-  const pos = geo.attributes.position;
-  const index = geo.index ? geo.index.array : null;
-  const count = index ? index.length : pos.count;
-  const behind = [];
-  const ahead = [];
-  const v = new THREE.Vector3();
-  mesh.updateMatrixWorld(true);
-  for (let t = 0; t < count; t += 3) {
-    let cx = 0;
-    const ids = [0, 1, 2].map((k) => (index ? index[t + k] : t + k));
-    for (const id of ids) {
-      v.fromBufferAttribute(pos, id).applyMatrix4(mesh.matrixWorld);
-      cx += v.x / 3;
-    }
-    (cx < threshold ? behind : ahead).push(...ids);
-  }
-  const make = (ids, name) => {
-    const g = new THREE.BufferGeometry();
-    for (const [key, attr] of Object.entries(geo.attributes)) g.setAttribute(key, attr);
-    g.setIndex(ids);
-    g.computeBoundingBox();
-    g.computeBoundingSphere();
-    const m = new THREE.Mesh(g, mesh.material);
-    m.name = name;
-    m.userData = { ...mesh.userData };
-    m.castShadow = true;
-    m.receiveShadow = true;
-    m.position.copy(mesh.position);
-    m.quaternion.copy(mesh.quaternion);
-    m.scale.copy(mesh.scale);
-    return m;
-  };
-  return { behind: make(behind, `${mesh.name}_rear`), ahead: make(ahead, `${mesh.name}_front`) };
 }
 
 /**
@@ -203,119 +189,6 @@ function splitMeshByPredicate(mesh, predicate) {
     return m;
   };
   return { matched: make(matched, `${mesh.name}_split`), rest: make(rest, mesh.name) };
-}
-
-/** Zone du capot, mesurée sur le modèle : x 1,33 → 2,16 m, largeur ±0,80 m, face supérieure. */
-function isBonnetTriangle(x, y, z, n) {
-  if (x < 1.33 || x > 2.16 || Math.abs(z) > 0.8 || y < 0.74 || n.y < 0.2) return false;
-  if (x > 1.62 && Math.abs(z) > 0.6 && y < 0.97) return false; // boîtiers de phares
-  return true;
-}
-
-/**
- * Découpe le capot des maillages peints du châssis et le monte sur un pivot
- * (bord arrière, à la base du pare-brise). Ajoute un compartiment moteur simplifié.
- */
-function extractBonnet(group, nodes) {
-  const pivot = new THREE.Group();
-  pivot.name = 'bonnet';
-  pivot.position.set(1.33, 1.06, 0);
-  group.add(pivot);
-  const paintDouble = paintMaterial.clone();
-  paintDouble.side = THREE.DoubleSide;
-  for (const name of ['bodyshell_2', 'bodyshell_3']) {
-    const mesh = nodes[name];
-    if (!mesh?.isMesh) continue;
-    const split = splitMeshByPredicate(mesh, isBonnetTriangle);
-    if (!split) continue;
-    const parent = mesh.parent;
-    parent.remove(mesh);
-    parent.add(split.rest);
-    nodes[name] = split.rest;
-    parent.add(split.matched);
-    split.matched.material = paintDouble;
-    split.matched.userData.paintDouble = true;
-    group.updateMatrixWorld(true);
-    pivot.attach(split.matched);
-  }
-  // Compartiment moteur (le mod n'en a pas) : bac sombre, bloc moteur, batterie, boîte à air.
-  const bay = new THREE.Group();
-  bay.name = 'engineBay';
-  const dark = new THREE.MeshStandardMaterial({ color: '#15171a', roughness: 0.9 });
-  const plastic = new THREE.MeshStandardMaterial({ color: '#2b2e33', roughness: 0.7 });
-  const alu = new THREE.MeshStandardMaterial({ color: '#9aa0a6', metalness: 0.7, roughness: 0.45 });
-  const addBox = (min, max, mat) => {
-    const size = [max[0] - min[0], max[1] - min[1], max[2] - min[2]];
-    const m = new THREE.Mesh(new THREE.BoxGeometry(...size), mat);
-    m.position.set(min[0] + size[0] / 2, min[1] + size[1] / 2, min[2] + size[2] / 2);
-    m.castShadow = true;
-    m.receiveShadow = true;
-    bay.add(m);
-  };
-  addBox([1.38, 0.5, -0.66], [2.04, 0.55, 0.66], dark); // fond
-  addBox([1.38, 0.5, -0.68], [2.04, 0.82, -0.64], dark); // flancs
-  addBox([1.38, 0.5, 0.64], [2.04, 0.82, 0.68], dark);
-  addBox([1.36, 0.5, -0.66], [1.4, 0.98, 0.66], dark); // tablier
-  addBox([2.0, 0.5, -0.66], [2.04, 0.74, 0.66], dark); // traverse avant
-  addBox([1.5, 0.55, -0.34], [1.94, 0.84, 0.28], plastic); // bloc moteur
-  addBox([1.56, 0.84, -0.28], [1.9, 0.88, 0.2], alu); // cache culasse
-  addBox([1.44, 0.55, 0.36], [1.7, 0.78, 0.6], plastic); // batterie
-  addBox([1.74, 0.56, 0.34], [1.96, 0.78, 0.6], plastic); // boîte à air
-  addBox([1.46, 0.55, -0.6], [1.86, 0.74, -0.4], plastic); // boîte fusibles / lave-glace
-  group.add(bay);
-  return pivot;
-}
-
-/** Projecteurs et barres LED modelés dans les optiques (le mod n'en a pas le détail). */
-function buildLightDetails(group, nodes) {
-  const chrome = new THREE.MeshPhysicalMaterial({ color: '#eef1f4', metalness: 1, roughness: 0.08, clearcoat: 1 });
-  const lensOn = () => new THREE.MeshPhysicalMaterial({ color: '#ffffff', emissive: '#fff6e2', emissiveIntensity: 0.2, roughness: 0.2, transmission: 0, clearcoat: 1 });
-  const ledOn = (color) => new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.2, roughness: 0.4 });
-  const head = [];
-  const tail = [];
-  const center = (n) => new THREE.Box3().setFromObject(nodes[n]).getCenter(new THREE.Vector3());
-
-  for (const name of ['headlight_l', 'headlight_r']) {
-    if (!nodes[name]) continue;
-    const c = center(name);
-    const side = Math.sign(c.z);
-    const g = new THREE.Group();
-    g.name = `${name}_detail`;
-    g.position.copy(c);
-    for (const [dx, dy, dz, r] of [[0, 0.0, -side * 0.025, 0.036], [-0.01, 0.012, side * 0.045, 0.028]]) {
-      const bowl = new THREE.Mesh(new THREE.SphereGeometry(r, 28, 18, 0, Math.PI * 2, 0, Math.PI / 2), chrome);
-      bowl.rotation.z = -Math.PI / 2; // ouverture vers +x
-      bowl.position.set(dx - r * 0.35, dy, dz);
-      bowl.material.side = THREE.BackSide;
-      g.add(bowl);
-      const lens = new THREE.Mesh(new THREE.CylinderGeometry(r * 0.62, r * 0.62, 0.012, 24), lensOn());
-      lens.rotation.z = Math.PI / 2;
-      lens.position.set(dx + r * 0.45, dy, dz);
-      g.add(lens);
-      head.push(lens);
-    }
-    // Barre LED de jour, sous les projecteurs.
-    const drl = new THREE.Mesh(new THREE.BoxGeometry(0.008, 0.007, 0.12), ledOn('#f4f8ff'));
-    drl.position.set(0.02, -0.055, 0);
-    g.add(drl);
-    head.push(drl);
-    group.add(g);
-  }
-  for (const name of ['taillight_l', 'taillight_r']) {
-    if (!nodes[name]) continue;
-    const c = center(name);
-    const g = new THREE.Group();
-    g.name = `${name}_detail`;
-    g.position.copy(c);
-    for (const dy of [-0.025, 0.02]) {
-      const bar = new THREE.Mesh(new THREE.BoxGeometry(0.008, 0.012, 0.13), ledOn('#ff2a2a'));
-      bar.position.set(0.02, dy, 0);
-      g.add(bar);
-      tail.push(bar);
-    }
-    group.add(g);
-  }
-  return { head, tail };
 }
 
 /**
@@ -420,12 +293,23 @@ export async function loadVehicle(onProgress) {
   for (const name of SEAT_MESHES) {
     const mesh = nodes[name];
     if (!mesh?.isMesh) continue;
-    const { behind, ahead } = splitMeshByWorldX(mesh, REAR_SEAT_SPLIT_X);
     const parent = mesh.parent;
-    parent.remove(mesh);
-    parent.add(behind, ahead);
-    rearSeats.children.push(behind);
-    frontSeats.children.push(ahead);
+    let remaining = mesh;
+    const rear = splitMeshByPredicate(remaining, isRearSeat);
+    if (rear) {
+      parent.remove(remaining);
+      parent.add(rear.matched, rear.rest);
+      rearSeats.children.push(rear.matched);
+      remaining = rear.rest;
+    }
+    const front = splitMeshByPredicate(remaining, isFrontSeat);
+    if (front) {
+      parent.remove(remaining);
+      parent.add(front.matched, front.rest);
+      frontSeats.children.push(front.matched);
+      remaining = front.rest;
+    }
+    nodes[name] = remaining;
   }
   group.updateMatrixWorld(true);
 
@@ -465,12 +349,8 @@ export async function loadVehicle(onProgress) {
     sorted.slice(1).forEach((m) => { m.material = hubMaterial; });
   }
 
-  // Capot ouvrable, détails d'optiques et ciel étoilé de garniture.
-  nodes.bonnet = extractBonnet(group, nodes);
-  parts.bonnet = nodes.bonnet;
-  nodes.bonnet.traverse((o) => { o.userData.toggleId = 'bonnet'; });
+  // Détails d'optiques et ciel étoilé de garniture.
   group.updateMatrixWorld(true);
-  const lightDetails = buildLightDetails(group, nodes);
   const starlight = buildStarlight(group, nodes.chassis_17);
 
   const meshes = [];
@@ -493,9 +373,6 @@ export async function loadVehicle(onProgress) {
   for (const list of Object.values(lightMeshes)) {
     for (const m of list) if (m.material.userData.shared !== false) { m.material = m.material.clone(); m.material.userData.shared = false; m.userData.baseMaterial = m.material; }
   }
-  lightMeshes.head.push(...lightDetails.head);
-  lightMeshes.tail.push(...lightDetails.tail);
-  for (const m of [...lightDetails.head, ...lightDetails.tail]) { m.material.userData.shared = false; m.userData.baseMaterial = m.material; meshes.push(m); }
   // Les maillages ajoutés (compartiment moteur, optiques) doivent aussi passer en rayons X.
   group.traverse((o) => { if (o.isMesh && !o.userData.baseMaterial && !o.isPoints) { o.userData.baseMaterial = o.material; meshes.push(o); } });
 
@@ -506,40 +383,38 @@ export async function loadVehicle(onProgress) {
   const headPos = ['headlight_l', 'headlight_r'].map((n) => nodes[n] && worldCenter(nodes[n])).filter(Boolean);
   const tailPos = ['taillight_l', 'taillight_r'].map((n) => nodes[n] && worldCenter(nodes[n])).filter(Boolean);
 
-  // Faisceau lumineux visible : cône additif dégradé (alpha par sommet).
-  const beamGeo = new THREE.ConeGeometry(1.7, 10, 28, 1, true);
-  beamGeo.translate(0, -5, 0);
-  beamGeo.rotateZ(Math.PI / 2);
-  {
-    const pos = beamGeo.attributes.position;
-    const col = new Float32Array(pos.count * 4);
-    for (let i = 0; i < pos.count; i++) {
-      const t = Math.min(1, Math.max(0, pos.getX(i) / 10));
-      const a = 0.11 * Math.pow(1 - t, 2.6);
-      col.set([1, 0.93, 0.75, a], i * 4);
-    }
-    beamGeo.setAttribute('color', new THREE.BufferAttribute(col, 4));
-  }
-  const beamMat = new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: false });
-
+  // Halo diffus autour de chaque phare (sprite additif), au lieu d'un faisceau visible.
+  const haloTexture = (() => {
+    const size = 128;
+    const canvas = document.createElement('canvas');
+    canvas.width = size; canvas.height = size;
+    const ctx = canvas.getContext('2d');
+    const g = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
+    g.addColorStop(0, 'rgba(255,244,220,0.9)');
+    g.addColorStop(0.25, 'rgba(255,240,210,0.35)');
+    g.addColorStop(1, 'rgba(255,235,200,0)');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, size, size);
+    const t = new THREE.CanvasTexture(canvas); t.colorSpace = THREE.SRGBColorSpace; return t;
+  })();
+  const haloMat = new THREE.SpriteMaterial({ map: haloTexture, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, opacity: 0.55, fog: false });
   const spots = [];
   const beams = [];
   for (const hp of headPos) {
-    const spot = new THREE.SpotLight('#fff1d2', 90, 48, 0.52, 0.55, 1.3);
+    const spot = new THREE.SpotLight('#fff1d2', 22, 34, 0.62, 0.95, 1.5);
     spot.position.copy(hp);
-    spot.target.position.set(hp.x + 16, hp.y - 1.6, hp.z);
+    spot.target.position.set(hp.x + 14, hp.y - 1.9, hp.z);
     lights.add(spot, spot.target);
     spots.push(spot);
-    const beam = new THREE.Mesh(beamGeo, beamMat);
-    beam.position.copy(hp);
-    beam.rotation.z = -0.07;
-    beam.renderOrder = 5;
-    lights.add(beam);
-    beams.push(beam);
+    const halo = new THREE.Sprite(haloMat);
+    halo.position.copy(hp).add(new THREE.Vector3(0.06, 0, 0));
+    halo.scale.set(0.55, 0.4, 1);
+    halo.renderOrder = 5;
+    lights.add(halo);
+    beams.push(halo);
   }
   const glows = [];
   for (const tp of tailPos) {
-    const glow = new THREE.PointLight('#ff2a1a', 2.5, 3.5, 1.5);
+    const glow = new THREE.PointLight('#ff2a1a', 1.2, 3.0, 1.6);
     glow.position.copy(tp).add(new THREE.Vector3(-0.15, 0, 0));
     lights.add(glow);
     glows.push(glow);
@@ -583,15 +458,15 @@ export async function loadVehicle(onProgress) {
           mat.emissiveIntensity = on ? intensity : 0.12;
         }
       };
-      set(lightMeshes.head, '#fff6e2', 9);
-      set(lightMeshes.fog, '#fff0cc', 4);
-      set(lightMeshes.plate, '#ffffff', 2.5);
-      set(lightMeshes.dash, '#ffffff', 1.2);
+      set(lightMeshes.head, '#fff6e2', 3.2);
+      set(lightMeshes.fog, '#fff0cc', 1.8);
+      set(lightMeshes.plate, '#ffffff', 1.6);
+      set(lightMeshes.dash, '#ffffff', 1.0);
       for (const m of lightMeshes.tail) {
         const mat = m.material;
         if (!mat.emissive) continue;
         mat.emissive.set('#ff2020');
-        mat.emissiveIntensity = on ? 4.5 : 0.15;
+        mat.emissiveIntensity = on ? 2.4 : 0.15;
       }
       for (const sp of spots) sp.visible = on;
       for (const g of glows) g.visible = on;

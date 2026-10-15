@@ -36,7 +36,7 @@ export function createPostFX(renderer, scene, camera) {
   gtao.blendIntensity = 0.9;
   composer.addPass(gtao);
 
-  const bloom = new UnrealBloomPass(new THREE.Vector2(size.x, size.y), 0.45, 0.6, 1.7);
+  const bloom = new UnrealBloomPass(new THREE.Vector2(size.x, size.y), 0.22, 0.5, 2.4);
   composer.addPass(bloom);
 
   composer.addPass(new OutputPass());
@@ -50,9 +50,11 @@ export function createPostFX(renderer, scene, camera) {
       gtao.setSize(w, h);
       bloom.setSize(w, h);
     },
-    setQuality(high) {
-      gtao.enabled = high;
-      bloom.enabled = high;
+    /** 'eco' : rien ; 'standard' : bloom ; 'ultra' / 'photo' : bloom + occlusion ambiante. */
+    setQuality(level) {
+      const on = level !== 'eco';
+      bloom.enabled = on;
+      gtao.enabled = level === 'ultra' || level === 'photo';
     },
     render() {
       composer.render();

@@ -44,10 +44,13 @@ sun.shadow.camera.far = 30;
 sun.shadow.bias = -0.0004;
 sun.shadow.normalBias = 0.02;
 scene.add(sun);
-// Lumière d'habitacle pour lire l'aménagement.
-const cabin = new THREE.PointLight('#ffe9c4', 2, 4, 2);
-cabin.position.set(-0.8, 1.35, 0);
+// Lumières d'habitacle pour lire l'aménagement (plafonnier avant et arrière).
+const cabin = new THREE.PointLight('#fff1dc', 3, 4.5, 1.8);
+cabin.position.set(-0.4, 1.4, 0);
 scene.add(cabin);
+const cabinRear = new THREE.PointLight('#fff1dc', 2, 4, 1.8);
+cabinRear.position.set(-1.5, 1.3, 0);
+scene.add(cabinRear);
 
 // ---------- Décor : ciel, montagnes, prairie ----------
 const env = buildEnvironment({ scene, renderer, sun, cabin });
@@ -219,6 +222,7 @@ function captureReflections() {
 let captureTimer = null;
 function applyHour(hour, { immediateCapture = false } = {}) {
   const p = env.setHour(hour);
+  cabinRear.intensity = p.cabin * 0.7;
   hourInput.value = hour;
   hourValue.textContent = formatHour(hour);
   lightsBox.checked = p.lightsAuto;
@@ -249,12 +253,13 @@ const GTAO_PARAMS = {
 
 function applyQuality(level) {
   const dpr = window.devicePixelRatio || 1;
-  const pr = level === 'eco' ? 1 : level === 'ultra' ? Math.min(dpr, 2) : Math.min(dpr, 1.5);
+  const pr = level === 'eco' ? 1 : level === 'ultra' ? Math.min(dpr, 2) : Math.min(dpr, 1.25);
   renderer.setPixelRatio(pr);
   renderer.setSize(window.innerWidth, window.innerHeight);
   postfx.setSize(window.innerWidth, window.innerHeight);
-  postfx.setQuality(level !== 'eco');
+  postfx.setQuality(level);
   if (GTAO_PARAMS[level]) postfx.gtao.updateGtaoMaterial(GTAO_PARAMS[level]);
+  renderer.shadowMap.type = level === 'ultra' ? THREE.PCFSoftShadowMap : THREE.PCFShadowMap;
   const shadowSize = level === 'ultra' ? 4096 : 2048;
   if (sun.shadow.mapSize.x !== shadowSize) {
     sun.shadow.mapSize.set(shadowSize, shadowSize);
@@ -298,7 +303,7 @@ async function renderPhoto(width, height, hour) {
     renderer.setPixelRatio(1);
     renderer.setSize(width, height, false);
     postfx.setSize(width, height);
-    postfx.setQuality(true);
+    postfx.setQuality('photo');
     postfx.gtao.updateGtaoMaterial(GTAO_PARAMS.photo);
     camera.aspect = width / height;
     camera.updateProjectionMatrix();
@@ -380,19 +385,41 @@ const VIEWS = {
   side: { pos: [0.3, 1.4, 4.6], target: [0, 0.8, 0] },
   top: { pos: [0.01, 9, 0.01], target: [0, 0.5, 0] },
   tailgate: { pos: [-3.6, 1.45, 0.3], target: [-0.6, 0.8, 0], open: 'tailgate' },
-  inside: { pos: [-0.5, 1.3, 0], target: [-3.5, 0.8, 0], open: 'tailgate' },
-  starlight: { pos: [-0.35, 1.05, 0.08], target: [-1.1, 2.4, -0.05] },
+  inside: { pos: [-0.5, 1.3, 0], target: [-3.5, 0.8, 0], open: 'tailgate', firstPerson: true },
+  starlight: { pos: [-0.35, 1.05, 0.08], target: [-1.1, 2.4, -0.05], firstPerson: true },
 };
 let camAnim = null;
+let firstPerson = false;
+
+/**
+ * Mode « première personne » (allongé dans le lit, ciel étoilé) : on tourne la
+ * tête sans déplacer le point de vue. OrbitControls garde une cible à 5 cm devant
+ * la caméra ; le glissement est inversé pour sentir « je regarde vers ».
+ */
+function setFirstPerson(on) {
+  firstPerson = on;
+  controls.enablePan = !on;
+  controls.enableZoom = !on;
+  controls.rotateSpeed = on ? -0.35 : 1;
+  controls.minDistance = on ? 0.01 : 0.2;
+  controls.maxPolarAngle = on ? Math.PI - 0.02 : Math.PI - 0.08;
+  if (on) {
+    const dir = controls.target.clone().sub(camera.position).normalize();
+    controls.target.copy(camera.position).addScaledVector(dir, 0.05);
+  }
+}
+
 function goToView(name) {
   const v = VIEWS[name];
   if (v.open) setOpen(v.open, true);
+  if (firstPerson && !v.firstPerson) setFirstPerson(false);
   camAnim = {
     t: 0,
     fromPos: camera.position.clone(),
     fromTarget: controls.target.clone(),
     toPos: new THREE.Vector3(...v.pos),
     toTarget: new THREE.Vector3(...v.target),
+    firstPerson: !!v.firstPerson,
   };
 }
 for (const b of document.querySelectorAll('[data-view]')) {
@@ -443,7 +470,11 @@ function animate() {
     const k = easeInOut(camAnim.t);
     camera.position.lerpVectors(camAnim.fromPos, camAnim.toPos, k);
     controls.target.lerpVectors(camAnim.fromTarget, camAnim.toTarget, k);
-    if (camAnim.t >= 1) camAnim = null;
+    if (camAnim.t >= 1) {
+      const fp = camAnim.firstPerson;
+      camAnim = null;
+      if (fp) setFirstPerson(true);
+    }
   }
 
   env.update(dt);

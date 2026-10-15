@@ -27,8 +27,10 @@ export async function loadForest(onProgress) {
     o.castShadow = /Trunk|Rock|Cliff|Fence|Log/.test(o.name);
     const m = o.material;
     if (m) {
-      m.roughness = Math.min(1, (m.roughness ?? 1) * 1.0);
       if (m.alphaTest > 0) { m.alphaTest = 0.45; m.side = THREE.DoubleSide; }
+      if (m.map) m.map.anisotropy = 4;
+      if (m.normalMap) m.normalMap.anisotropy = 2;
+      m.envMapIntensity = 0.35;
     }
   });
   root.updateMatrixWorld(true);
