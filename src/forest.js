@@ -9,12 +9,12 @@ import forestUrl from './assets/forest.glb?url';
  * ligne droite du bas, où la voiture est garée, route orientée selon +X.
  */
 export const FOREST_PLACEMENT = {
-  scale: 11,
-  // Point du fichier (unités d'origine) amené à l'origine : section haute de la
-  // route, plate et dégagée de 7 à 14 m sur trois côtés (relevé par lancer de rayons).
-  origin: [-3.1, 3.5775, -1.505],
-  // Rotation pour aligner l'axe de la route sur +X (la voiture est garée dans l'axe).
-  rotationDeg: -32,
+  // Véhicule 1,5× plus petit par rapport au décor qu'à l'échelle ×11.
+  scale: 16.5,
+  // Ligne droite du bas de la route (emplacement d'origine), décalée de 2,5 m vers
+  // l'arrière de la voiture, là où le bord de route est le plus dégagé.
+  origin: [0.75, 4.67, 1.12],
+  rotationDeg: 0,
 };
 
 const FOLIAGE = /Atlas_0$|Atlas_0_1$|Bush|Vegetation|Fallen/;
