@@ -27,8 +27,8 @@ export async function loadForest(onProgress) {
     o.castShadow = /Trunk|Rock|Cliff|Fence|Log/.test(o.name);
     const m = o.material;
     if (m) {
-      if (m.alphaTest > 0) { m.alphaTest = 0.45; m.side = THREE.DoubleSide; }
-      if (m.map) m.map.anisotropy = 4;
+      if (m.alphaTest > 0) { m.alphaTest = 0.4; m.side = THREE.DoubleSide; m.alphaToCoverage = true; }
+      if (m.map) m.map.anisotropy = 8;
       if (m.normalMap) m.normalMap.anisotropy = 2;
       m.envMapIntensity = 0.35;
     }

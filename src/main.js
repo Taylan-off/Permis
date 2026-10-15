@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { buildEnvironment, lightingForHour } from './environment.js';
 import { createPostFX } from './postfx.js';
+import { CSM } from 'three/addons/csm/CSM.js';
 import { loadVehicle, PART_NODES } from './vehicle.js';
 import { buildInterior, layoutSpecs } from './interior.js';
 
@@ -31,19 +32,52 @@ controls.minDistance = 0.2;
 controls.maxDistance = 16;
 
 // ---------- Lumières ----------
-const sun = new THREE.DirectionalLight('#fff4e0', 3.2);
-sun.castShadow = true;
-sun.shadow.mapSize.set(4096, 4096);
-sun.shadow.camera.left = -5.5;
-sun.shadow.camera.right = 5.5;
-sun.shadow.camera.top = 5.5;
-sun.shadow.camera.bottom = -5.5;
-sun.shadow.radius = 4;
-sun.shadow.camera.near = 1;
-sun.shadow.camera.far = 30;
-sun.shadow.bias = -0.0004;
-sun.shadow.normalBias = 0.02;
+// `sun` sert de référence (position, couleur, intensité) au décor ; l'éclairage et
+// les ombres réels viennent des cascades CSM ci-dessous (ombres nettes près de la
+// voiture, étendues à toute la forêt : les arbres projettent sur la route).
+const sun = new THREE.DirectionalLight('#fff4e0', 0);
+sun.castShadow = false;
 scene.add(sun);
+
+const csm = new CSM({
+  camera,
+  parent: scene,
+  cascades: 3,
+  maxFar: 70,
+  mode: 'practical',
+  shadowMapSize: 2048,
+  shadowBias: -0.00015,
+  lightDirection: new THREE.Vector3(-0.5, -0.6, 0.4).normalize(),
+  lightIntensity: 3,
+  lightNear: 1,
+  lightFar: 400,
+  lightMargin: 120,
+});
+csm.fade = true;
+for (const l of csm.lights) { l.shadow.normalBias = 0.03; l.shadow.radius = 3; }
+
+/** Branche les matériaux d'un sous-arbre sur les cascades et active les ombres. */
+const csmMaterials = new Set();
+function registerShadows(root, { cast = true } = {}) {
+  root.traverse((o) => {
+    if (!o.isMesh && !o.isInstancedMesh) return;
+    o.receiveShadow = true;
+    if (cast) o.castShadow = true;
+    const mats = Array.isArray(o.material) ? o.material : [o.material];
+    for (const m of mats) {
+      if (!m || csmMaterials.has(m) || !(m.isMeshStandardMaterial || m.isMeshPhysicalMaterial)) continue;
+      csm.setupMaterial(m);
+      csmMaterials.add(m);
+    }
+  });
+}
+
+function syncSunToCsm() {
+  const dir = sun.position.clone().negate().normalize();
+  csm.lightDirection.copy(dir);
+  for (const l of csm.lights) { l.color.copy(sun.color); l.intensity = sun.intensity; }
+  csm.updateFrustums();
+}
 // Lumières d'habitacle pour lire l'aménagement (plafonnier avant et arrière).
 const cabin = new THREE.PointLight('#fff1dc', 3, 4.5, 1.8);
 cabin.position.set(-0.4, 1.4, 0);
@@ -55,10 +89,13 @@ scene.add(cabinRear);
 // ---------- Décor : ciel, montagnes, prairie ----------
 const env = buildEnvironment({ scene, renderer, sun, cabin });
 const postfx = createPostFX(renderer, scene, camera);
+for (const o of [env.terrain, env.meadow, env.conifers, env.broadleaves, env.rocks]) registerShadows(o);
+registerShadows(env.grass, { cast: false });
 
 // ---------- Aménagement ----------
 const { root: interior, groups } = buildInterior();
 scene.add(interior);
+registerShadows(interior);
 
 const specsTable = document.getElementById('specs-layout');
 for (const [k, v] of layoutSpecs()) {
@@ -131,6 +168,7 @@ function applyDecor() {
     });
     vehicle = v;
     scene.add(v.group);
+    registerShadows(v.group);
     for (const [id, node] of Object.entries(v.parts)) openables[id] = node;
     applyVisibility();
     applyExtension();
@@ -144,6 +182,7 @@ function applyDecor() {
         if (e.total) loadingPct.textContent = `${Math.round((e.loaded / e.total) * 100)} %`;
       });
       scene.add(forest.root);
+      registerShadows(forest.root);
     } catch (err) {
       console.error('Décor forêt indisponible, repli sur les montagnes', err);
       decorSelect.value = 'mountains';
@@ -223,6 +262,7 @@ let captureTimer = null;
 function applyHour(hour, { immediateCapture = false } = {}) {
   const p = env.setHour(hour);
   cabinRear.intensity = p.cabin * 0.7;
+  syncSunToCsm();
   hourInput.value = hour;
   hourValue.textContent = formatHour(hour);
   lightsBox.checked = p.lightsAuto;
@@ -260,10 +300,12 @@ function applyQuality(level) {
   postfx.setQuality(level);
   if (GTAO_PARAMS[level]) postfx.gtao.updateGtaoMaterial(GTAO_PARAMS[level]);
   renderer.shadowMap.type = level === 'ultra' ? THREE.PCFSoftShadowMap : THREE.PCFShadowMap;
-  const shadowSize = level === 'ultra' ? 4096 : 2048;
-  if (sun.shadow.mapSize.x !== shadowSize) {
-    sun.shadow.mapSize.set(shadowSize, shadowSize);
-    if (sun.shadow.map) { sun.shadow.map.dispose(); sun.shadow.map = null; }
+  const shadowSize = level === 'ultra' ? 4096 : level === 'eco' ? 1024 : 2048;
+  for (const l of csm.lights) {
+    if (l.shadow.mapSize.x !== shadowSize) {
+      l.shadow.mapSize.set(shadowSize, shadowSize);
+      if (l.shadow.map) { l.shadow.map.dispose(); l.shadow.map = null; }
+    }
   }
   env.setQuality(level);
 }
@@ -480,6 +522,7 @@ function animate() {
   env.update(dt);
   vehicle?.update(dt);
   controls.update();
+  csm.update();
   if (camera.position.y < 0.12) camera.position.y = 0.12; // jamais sous le sol
   postfx.render();
   requestAnimationFrame(animate);
@@ -494,4 +537,4 @@ window.addEventListener('resize', () => {
 });
 
 // Accès de débogage (page measure.html et tests).
-window.__app = { THREE, scene, renderer, camera, controls, groups, env, postfx, get vehicle() { return vehicle; }, get forest() { return forest; }, setOpen, goToView, applyPreset, applyHour, applyQuality, applyDecor, renderPhoto, lightingForHour };
+window.__app = { THREE, scene, renderer, camera, controls, groups, env, postfx, csm, get vehicle() { return vehicle; }, get forest() { return forest; }, setOpen, goToView, applyPreset, applyHour, applyQuality, applyDecor, renderPhoto, lightingForHour };

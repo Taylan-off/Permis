@@ -28,7 +28,9 @@ pièces séparées, animables.
 - **Heure continue** (lever 6 h, coucher 20 h) avec raccourcis midi / golden hour /
   nuit ; feux, lune et étoiles suivent automatiquement.
 - Rendu « façon ray tracing » : reflets du vrai décor sur la carrosserie (capture
-  cubique), occlusion ambiante GTAO, bloom, MSAA, tone mapping ACES.
+  cubique), **ombres en cascade (CSM)** sur toute la forêt (les arbres projettent sur
+  la route), feuillages à bords lissés (alpha to coverage), occlusion ambiante GTAO
+  en Ultra, bloom, MSAA, tone mapping ACES.
 - Feux allumés : phares avec projecteurs modelés et faisceaux visibles, feux
   arrière LED, plaque, tableau de bord. Capot ouvrable (découpé du châssis au
   chargement) sur compartiment moteur simplifié. Jantes aluminium.
