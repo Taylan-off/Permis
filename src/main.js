@@ -137,7 +137,7 @@ const VIEWS = {
   rear: { pos: [-5.4, 2.2, 4.2], target: [0, 0.8, 0] },
   side: { pos: [0.2, 1.4, 6.8], target: [0, 0.8, 0] },
   top: { pos: [0.01, 9, 0.01], target: [0, 0.5, 0] },
-  inside: { pos: [-0.05, 1.38, 0.1], target: [-2.3, 0.8, 0] },
+  inside: { pos: [0.22, 1.42, 0.0], target: [-2.3, 0.72, 0] },
 };
 let camAnim = null;
 function goToView(name) {
