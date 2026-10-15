@@ -1,7 +1,6 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
-import { materials as M } from './materials.js';
+import { buildEnvironment } from './environment.js';
 import { loadVehicle, PART_NODES } from './vehicle.js';
 import { buildInterior, layoutSpecs } from './interior.js';
 
@@ -13,17 +12,12 @@ renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.05;
+renderer.toneMappingExposure = 0.75;
 renderer.localClippingEnabled = true;
 
 const scene = new THREE.Scene();
-scene.background = new THREE.Color('#0f1419');
-scene.fog = new THREE.Fog('#0f1419', 18, 40);
 
-const pmrem = new THREE.PMREMGenerator(renderer);
-scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
-
-const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.05, 100);
+const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.05, 12000);
 camera.position.set(5.2, 2.2, -4.4);
 
 const controls = new OrbitControls(camera, canvas);
@@ -35,9 +29,8 @@ controls.minDistance = 0.2;
 controls.maxDistance = 16;
 
 // ---------- Lumières ----------
-scene.add(new THREE.HemisphereLight('#cfe3ff', '#2a333d', 0.7));
-const sun = new THREE.DirectionalLight('#ffffff', 2.4);
-sun.position.set(5, 8, -4);
+scene.add(new THREE.HemisphereLight('#bcd7ff', '#4a5a35', 0.55));
+const sun = new THREE.DirectionalLight('#fff4e0', 3.2);
 sun.castShadow = true;
 sun.shadow.mapSize.set(2048, 2048);
 sun.shadow.camera.left = -6;
@@ -57,14 +50,8 @@ const cabin = new THREE.PointLight('#ffe9c4', 6, 4, 2);
 cabin.position.set(-0.8, 1.35, 0);
 scene.add(cabin);
 
-// ---------- Sol ----------
-const ground = new THREE.Mesh(new THREE.CircleGeometry(14, 64), M.ground);
-ground.rotation.x = -Math.PI / 2;
-ground.receiveShadow = true;
-scene.add(ground);
-const grid = new THREE.GridHelper(28, 28, '#2b3642', '#1f2832');
-grid.position.y = 0.002;
-scene.add(grid);
+// ---------- Décor : ciel, montagnes, prairie ----------
+buildEnvironment({ scene, renderer, sun });
 
 // ---------- Aménagement ----------
 const { root: interior, groups } = buildInterior();

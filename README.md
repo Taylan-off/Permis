@@ -18,6 +18,9 @@ pièces séparées, animables.
   portes arrière, caisses de rangement.
 - Vues prédéfinies, **coupe horizontale réglable** pour voir l'intérieur de dessus,
   carrosserie transparente, tableau des cotes.
+- Décor de montagne léger et entièrement procédural (`src/environment.js`) : ciel
+  atmosphérique, relief par bruit simplex (un seul maillage), prairie texturée,
+  sapins instanciés. Aucune ressource lourde à télécharger.
 
 ## Lancer le projet
 
@@ -35,6 +38,8 @@ npm run preview  # prévisualise le build
 ## Structure
 
 - `src/assets/touran.glb` : le véhicule (glTF compressé meshopt + WebP, 1,7 Mo).
+- `src/assets/grass*.jpg` : texture d'herbe (three.js, licence MIT) et sa carte de relief.
+- `src/environment.js` : ciel, montagnes, prairie, sapins.
 - `src/vehicle.js` : chargement du modèle, matériaux, séparation des sièges, ouvrants.
 - `src/interior.js` : aménagement (cotes dans `LAYOUT`).
 - `src/main.js` : scène, caméra, animations, interface.
