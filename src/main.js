@@ -20,7 +20,7 @@ renderer.localClippingEnabled = true;
 const scene = new THREE.Scene();
 
 const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.05, 12000);
-camera.position.set(5.6, 1.9, 2.9);
+camera.position.set(6.4, 3.6, 4.2);
 
 const controls = new OrbitControls(camera, canvas);
 controls.target.set(0, 0.8, 0);
@@ -78,13 +78,9 @@ function syncSunToCsm() {
   for (const l of csm.lights) { l.color.copy(sun.color); l.intensity = sun.intensity; }
   csm.updateFrustums();
 }
-// Lumières d'habitacle pour lire l'aménagement (plafonnier avant et arrière).
-const cabin = new THREE.PointLight('#fff1dc', 3, 4.5, 1.8);
-cabin.position.set(-0.4, 1.4, 0);
-scene.add(cabin);
-const cabinRear = new THREE.PointLight('#fff1dc', 2, 4, 1.8);
-cabinRear.position.set(-1.5, 1.3, 0);
-scene.add(cabinRear);
+// Pas de lumière artificielle dans l'habitacle : éclairage naturel uniquement.
+const cabin = new THREE.PointLight('#fff1dc', 0, 4.5, 1.8);
+const cabinRear = new THREE.PointLight('#fff1dc', 0, 4, 1.8);
 
 // ---------- Décor : ciel, montagnes, prairie ----------
 const env = buildEnvironment({ scene, renderer, sun, cabin });
@@ -182,7 +178,8 @@ function applyDecor() {
         if (e.total) loadingPct.textContent = `${Math.round((e.loaded / e.total) * 100)} %`;
       });
       scene.add(forest.root);
-      registerShadows(forest.root);
+      registerShadows(forest.root, { cast: false });
+      forest.setFoliageShadows(qualitySelect.value === 'ultra');
     } catch (err) {
       console.error('Décor forêt indisponible, repli sur les montagnes', err);
       decorSelect.value = 'mountains';
@@ -261,7 +258,8 @@ function captureReflections() {
 let captureTimer = null;
 function applyHour(hour, { immediateCapture = false } = {}) {
   const p = env.setHour(hour);
-  cabinRear.intensity = p.cabin * 0.7;
+  cabinRear.intensity = 0;
+  cabin.intensity = 0;
   syncSunToCsm();
   hourInput.value = hour;
   hourValue.textContent = formatHour(hour);
@@ -308,6 +306,7 @@ function applyQuality(level) {
     }
   }
   env.setQuality(level);
+  forest?.setFoliageShadows(level === 'ultra');
 }
 qualitySelect.addEventListener('change', () => applyQuality(qualitySelect.value));
 applyQuality(qualitySelect.value);
@@ -400,6 +399,15 @@ photoGo.addEventListener('click', async () => {
   }
 });
 
+// Champ de vision.
+const fovInput = document.querySelector('[data-option="fov"]');
+const fovValue = document.getElementById('fov-value');
+fovInput.addEventListener('input', () => {
+  camera.fov = Number(fovInput.value);
+  camera.updateProjectionMatrix();
+  fovValue.textContent = `${fovInput.value}°`;
+});
+
 const cutInput = document.querySelector('[data-option="cut"]');
 const cutValue = document.getElementById('cut-value');
 const cutPlane = new THREE.Plane(new THREE.Vector3(0, -1, 0), 10);
@@ -422,10 +430,10 @@ document.getElementById('panel-toggle').addEventListener('click', () => panel.cl
 // ---------- Vues prédéfinies ----------
 // Vues choisies dans les directions dégagées de la forêt (côté passager, axe de la route).
 const VIEWS = {
-  front: { pos: [5.6, 1.9, 2.9], target: [0, 0.8, 0] },
-  rear: { pos: [-5.6, 2.0, 3.2], target: [0, 0.8, 0] },
-  side: { pos: [0.3, 1.4, 4.6], target: [0, 0.8, 0] },
-  top: { pos: [0.01, 9, 0.01], target: [0, 0.5, 0] },
+  front: { pos: [6.4, 3.6, 4.2], target: [0, 0.7, 0] },
+  rear: { pos: [-6.4, 3.6, 4.2], target: [0, 0.7, 0] },
+  side: { pos: [0.3, 3.0, 7.0], target: [0, 0.7, 0] },
+  top: { pos: [0.01, 12, 0.01], target: [0, 0.5, 0] },
   tailgate: { pos: [-3.6, 1.45, 0.3], target: [-0.6, 0.8, 0], open: 'tailgate' },
   inside: { pos: [-0.5, 1.3, 0], target: [-3.5, 0.8, 0], open: 'tailgate', firstPerson: true },
   starlight: { pos: [-0.35, 1.05, 0.08], target: [-1.1, 2.4, -0.05], firstPerson: true },

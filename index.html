@@ -88,6 +88,10 @@
         </label>
         <button data-action="photo" class="wide accent">📷 Mode photo</button>
         <label class="slider">
+          <span>Champ de vision <output id="fov-value">45°</output></span>
+          <input type="range" data-option="fov" min="25" max="95" value="45" step="1" />
+        </label>
+        <label class="slider">
           <span>Coupe horizontale <output id="cut-value">off</output></span>
           <input type="range" data-option="cut" min="0" max="170" value="0" step="1" />
         </label>

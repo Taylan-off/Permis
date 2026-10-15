@@ -45,11 +45,11 @@ export const paintMaterial = new THREE.MeshPhysicalMaterial({
 
 /** Vitrage d'optique (phares, feux) : couvercle clair, presque invisible. */
 const lampCoverMaterial = new THREE.MeshPhysicalMaterial({
-  color: '#dfe8ef',
+  color: '#7d878e',
   metalness: 0,
   roughness: 0.04,
   transparent: true,
-  opacity: 0.14,
+  opacity: 0.3,
   clearcoat: 1,
   depthWrite: false,
 });
@@ -65,12 +65,13 @@ const innerGlassMaterial = new THREE.MeshPhysicalMaterial({
   depthWrite: false,
 });
 
+// Vitres teintées à 30 %.
 const glassMaterial = new THREE.MeshPhysicalMaterial({
-  color: '#8fb8d8',
+  color: '#55697a',
   metalness: 0.1,
   roughness: 0.05,
   transparent: true,
-  opacity: 0.3,
+  opacity: 0.45,
   side: THREE.DoubleSide,
   depthWrite: false,
 });
@@ -383,39 +384,21 @@ export async function loadVehicle(onProgress) {
   const headPos = ['headlight_l', 'headlight_r'].map((n) => nodes[n] && worldCenter(nodes[n])).filter(Boolean);
   const tailPos = ['taillight_l', 'taillight_r'].map((n) => nodes[n] && worldCenter(nodes[n])).filter(Boolean);
 
-  // Halo diffus autour de chaque phare (sprite additif), au lieu d'un faisceau visible.
-  const haloTexture = (() => {
-    const size = 128;
-    const canvas = document.createElement('canvas');
-    canvas.width = size; canvas.height = size;
-    const ctx = canvas.getContext('2d');
-    const g = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
-    g.addColorStop(0, 'rgba(255,244,220,0.9)');
-    g.addColorStop(0.25, 'rgba(255,240,210,0.35)');
-    g.addColorStop(1, 'rgba(255,235,200,0)');
-    ctx.fillStyle = g; ctx.fillRect(0, 0, size, size);
-    const t = new THREE.CanvasTexture(canvas); t.colorSpace = THREE.SRGBColorSpace; return t;
-  })();
-  const haloMat = new THREE.SpriteMaterial({ map: haloTexture, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, opacity: 0.55, fog: false });
   const spots = [];
   const beams = [];
   for (const hp of headPos) {
-    const spot = new THREE.SpotLight('#fff1d2', 22, 34, 0.62, 0.95, 1.5);
-    spot.position.copy(hp);
-    spot.target.position.set(hp.x + 14, hp.y - 1.9, hp.z);
+    // Spot placé 35 cm devant l'optique, incliné vers le sol : il n'éclaire que le décor.
+    const spot = new THREE.SpotLight('#fff1d2', 2.2, 30, 0.7, 0.95, 1.5);
+    spot.position.copy(hp).add(new THREE.Vector3(0.35, 0, 0));
+    spot.target.position.set(hp.x + 12, hp.y - 2.2, hp.z);
     lights.add(spot, spot.target);
     spots.push(spot);
-    const halo = new THREE.Sprite(haloMat);
-    halo.position.copy(hp).add(new THREE.Vector3(0.06, 0, 0));
-    halo.scale.set(0.55, 0.4, 1);
-    halo.renderOrder = 5;
-    lights.add(halo);
-    beams.push(halo);
+
   }
   const glows = [];
   for (const tp of tailPos) {
-    const glow = new THREE.PointLight('#ff2a1a', 1.2, 3.0, 1.6);
-    glow.position.copy(tp).add(new THREE.Vector3(-0.15, 0, 0));
+    const glow = new THREE.PointLight('#ff2a1a', 0.12, 2.5, 1.6);
+    glow.position.copy(tp).add(new THREE.Vector3(-0.25, 0, 0));
     lights.add(glow);
     glows.push(glow);
   }
@@ -458,15 +441,15 @@ export async function loadVehicle(onProgress) {
           mat.emissiveIntensity = on ? intensity : 0.12;
         }
       };
-      set(lightMeshes.head, '#fff6e2', 3.2);
-      set(lightMeshes.fog, '#fff0cc', 1.8);
-      set(lightMeshes.plate, '#ffffff', 1.6);
-      set(lightMeshes.dash, '#ffffff', 1.0);
+      set(lightMeshes.head, '#ffffff', 6.0);
+      set(lightMeshes.fog, '#fff4dc', 3.0);
+      set(lightMeshes.plate, '#ffffff', 1.0);
+      set(lightMeshes.dash, '#ffffff', 0.9);
       for (const m of lightMeshes.tail) {
         const mat = m.material;
         if (!mat.emissive) continue;
-        mat.emissive.set('#ff2020');
-        mat.emissiveIntensity = on ? 2.4 : 0.15;
+        mat.emissive.set('#ff1010');
+        mat.emissiveIntensity = on ? 5.0 : 0.15;
       }
       for (const sp of spots) sp.visible = on;
       for (const g of glows) g.visible = on;

@@ -19,8 +19,8 @@ pièces séparées, animables.
 - Vues prédéfinies, **coupe horizontale réglable** pour voir l'intérieur de dessus,
   carrosserie transparente, tableau des cotes.
 - **Décor « Route forestière »** : la scène USDZ fournie (Sketchfab, « Dirt Road Through
-  Forest »), convertie avec `tools/usd2gltf.py`, agrandie ×8 et posée pour que la
-  voiture soit garée sur la ligne droite de la route (`src/forest.js`). Chargée en
+  Forest »), convertie avec `tools/usd2gltf.py`, agrandie ×11 et posée pour que la
+  voiture soit garée sur la section plate et dégagée de la route (`src/forest.js`). Chargée en
   module séparé après le véhicule.
 - Décor de montagne léger et entièrement procédural (`src/environment.js`) : ciel
   atmosphérique, relief par bruit simplex (un seul maillage), prairie texturée,
