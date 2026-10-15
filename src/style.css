@@ -35,6 +35,9 @@ html, body {
   width: 320px;
   max-height: calc(100% - 32px);
   overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
   padding: 18px 18px 10px;
   background: var(--panel);
   border: 1px solid var(--panel-border);
@@ -315,3 +318,7 @@ button.accent:hover { background: rgba(79, 142, 247, 0.35); }
 }
 
 #photo-go.busy { opacity: 0.6; pointer-events: none; }
+
+#panel * { max-width: 100%; min-width: 0; }
+#panel .grid button, #panel .row button { white-space: normal; }
+label.slider input[type="range"] { margin: 0; }
