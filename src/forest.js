@@ -13,7 +13,7 @@ export const FOREST_PLACEMENT = {
   scale: 16.5,
   // Ligne droite du bas de la route (emplacement d'origine), décalée de 2,5 m vers
   // l'arrière de la voiture, là où le bord de route est le plus dégagé.
-  origin: [0.02, 4.67, 1.27],
+  origin: [-0.04, 4.67, 1.27],
   rotationDeg: 0,
 };
 
