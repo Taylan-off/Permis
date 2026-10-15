@@ -28,7 +28,8 @@
           <button data-toggle="doorFR">Porte AV passager</button>
           <button data-toggle="doorRL">Porte AR gauche</button>
           <button data-toggle="doorRR">Porte AR droite</button>
-          <button data-toggle="tailgate" class="wide">Hayon</button>
+          <button data-toggle="tailgate">Hayon</button>
+          <button data-toggle="bonnet">Capot</button>
         </div>
         <div class="row">
           <button data-action="openAll">Tout ouvrir</button>
@@ -60,16 +61,27 @@
           <button data-view="top">Dessus</button>
           <button data-view="tailgate">Par le hayon</button>
           <button data-view="inside">Allongé dans le lit</button>
+          <button data-view="starlight" class="wide">Ciel étoilé de la garniture</button>
         </div>
-        <label class="select">Ambiance
-          <select data-option="preset">
-            <option value="evening" selected>Fin de journée</option>
-            <option value="day">Journée</option>
-            <option value="night">Nuit</option>
+        <label class="slider">
+          <span>Heure <output id="hour-value">19 h 18</output></span>
+          <input type="range" data-option="hour" min="0" max="24" value="19.3" step="0.1" />
+        </label>
+        <div class="grid three">
+          <button data-hour="13">Midi</button>
+          <button data-hour="19.3">Golden hour</button>
+          <button data-hour="23">Nuit</button>
+        </div>
+        <label><input type="checkbox" data-option="lights" checked /> Feux allumés</label>
+        <label><input type="checkbox" data-option="starlight" checked /> Ciel étoilé de garniture de toit</label>
+        <label class="select">Performance
+          <select data-option="quality">
+            <option value="eco">Éco (sans effets)</option>
+            <option value="standard" selected>Standard</option>
+            <option value="ultra">Ultra (iPad Pro, PC)</option>
           </select>
         </label>
-        <label><input type="checkbox" data-option="lights" checked /> Feux allumés</label>
-        <label><input type="checkbox" data-option="quality" checked /> Qualité élevée (occlusion, bloom)</label>
+        <button data-action="photo" class="wide accent">📷 Mode photo</button>
         <label class="slider">
           <span>Coupe horizontale <output id="cut-value">off</output></span>
           <input type="range" data-option="cut" min="0" max="170" value="0" step="1" />
@@ -94,6 +106,38 @@
     </aside>
 
     <button id="panel-toggle" aria-label="Afficher / masquer le panneau">☰</button>
+
+    <div id="photo" class="modal hidden">
+      <div class="modal-card">
+        <h2>Mode photo</h2>
+        <p class="hint">Rendu haute définition de la vue actuelle, en qualité maximale (occlusion ambiante renforcée, bloom, anticrénelage). Cadre d'abord la scène, puis génère.</p>
+        <label class="select">Résolution
+          <select id="photo-res">
+            <option value="1920x1080">Full HD (1920 × 1080)</option>
+            <option value="2560x1440" selected>QHD (2560 × 1440)</option>
+            <option value="3840x2160">4K (3840 × 2160)</option>
+          </select>
+        </label>
+        <label class="slider">
+          <span>Heure <output id="photo-hour-value"></output></span>
+          <input type="range" id="photo-hour" min="0" max="24" step="0.1" />
+        </label>
+        <div class="grid three">
+          <button data-photo-hour="13">Midi</button>
+          <button data-photo-hour="19.3">Golden hour</button>
+          <button data-photo-hour="23">Nuit</button>
+        </div>
+        <div class="row">
+          <button id="photo-go" class="accent">Générer la photo</button>
+          <button id="photo-close">Fermer</button>
+        </div>
+        <div id="photo-result" class="hidden">
+          <img id="photo-img" alt="Photo générée" />
+          <a id="photo-save" download="touran-camper.png">Enregistrer l'image</a>
+          <p class="hint">Sur iPad : appui long sur l'image pour l'ajouter aux Photos.</p>
+        </div>
+      </div>
+    </div>
 
     <script type="module" src="./src/main.js"></script>
   </body>

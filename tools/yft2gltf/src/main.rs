@@ -596,6 +596,9 @@ fn main() -> Result<()> {
     }
 
     // Enfants physiques et roues empruntées (comme le rendu du jeu).
+    // La pièce est placée sur la position monde de son os (celle du rendu),
+    // pas sur celle de l'enfant physique (collision), qui peut différer de
+    // plusieurs centimètres (roues arrière du Touran : 9 cm).
     let mut seen_tags: Vec<u16> = Vec::new();
     for part in fragment.render_parts() {
         let Some(tag) = part.bone_tag else { continue };
@@ -603,7 +606,12 @@ fn main() -> Result<()> {
         seen_tags.push(tag);
         let base = tag_to_name.get(&tag).cloned().unwrap_or_else(|| format!("tag_{tag}"));
         let name = format!("part_{base}");
-        if let Some(n) = export_rigid(&mut ctx, part.drawable, &name, part.transform) { root_children.push(n); }
+        let mut transform = part.transform;
+        if let Some((i, _)) = bones.iter().enumerate().find(|(_, b)| b.tag == tag) {
+            let (_, t) = worlds[i];
+            transform = transform.with_translation(t);
+        }
+        if let Some(n) = export_rigid(&mut ctx, part.drawable, &name, transform) { root_children.push(n); }
     }
 
     println!("\nnœuds exportés (sommets / triangles) :");

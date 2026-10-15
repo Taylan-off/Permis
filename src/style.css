@@ -248,3 +248,70 @@ label.select select {
   padding: 6px 8px;
   font-size: 13px;
 }
+
+.grid.three { grid-template-columns: 1fr 1fr 1fr; }
+
+button.accent {
+  background: rgba(79, 142, 247, 0.22);
+  border-color: var(--accent);
+}
+
+button.accent:hover { background: rgba(79, 142, 247, 0.35); }
+
+/* ── Mode photo ─────────────────────────────────────────────────────────── */
+.modal {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(5, 8, 12, 0.6);
+  backdrop-filter: blur(6px);
+  padding: 16px;
+}
+
+.modal.hidden { display: none; }
+
+.modal-card {
+  width: min(720px, 100%);
+  max-height: calc(100% - 32px);
+  overflow-y: auto;
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: 14px;
+  padding: 20px;
+}
+
+.modal-card h2 {
+  font-size: 16px;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--text);
+  margin-bottom: 8px;
+}
+
+#photo-result { margin-top: 14px; }
+
+#photo-result.hidden { display: none; }
+
+#photo-result img {
+  width: 100%;
+  border-radius: 10px;
+  border: 1px solid var(--panel-border);
+  display: block;
+}
+
+#photo-save {
+  display: inline-block;
+  margin-top: 10px;
+  padding: 9px 14px;
+  border-radius: 8px;
+  background: rgba(46, 204, 113, 0.18);
+  border: 1px solid var(--accent-active);
+  color: var(--text);
+  text-decoration: none;
+  font-size: 13px;
+}
+
+#photo-go.busy { opacity: 0.6; pointer-events: none; }

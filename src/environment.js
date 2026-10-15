@@ -447,6 +447,51 @@ export const PRESETS = {
   },
 };
 
+const clamp01 = (x) => Math.min(1, Math.max(0, x));
+const mixColor = (a, b, t, out = new THREE.Color()) => out.set(a).lerp(new THREE.Color(b), clamp01(t));
+
+/**
+ * Paramètres d'éclairage pour une heure donnée (0 → 24). Lever ≈ 6 h,
+ * coucher ≈ 18 h 30, zénith à 62°. Entre 0° et 20° d'élévation : golden hour.
+ */
+export function lightingForHour(hour) {
+  // Lever 6 h, coucher 20 h (été), zénith à 62°.
+  const t = (hour - 6) / 14;
+  const elevation = Math.max(-28, Math.sin(t * Math.PI) * 62);
+  const azimuth = 95 + t * 170;
+  const high = smoothstep(0, 32, elevation);     // soleil haut
+  const day = smoothstep(-5, 8, elevation);       // jour vs nuit
+  const dusk = smoothstep(-12, -2, elevation) * (1 - smoothstep(0, 14, elevation)); // crépuscule
+  const night = 1 - day;
+  const sunColor = elevation > -2 ? mixColor('#ff9a4a', '#fff4e0', high) : new THREE.Color('#9fb4ff');
+  const sunIntensity = elevation > -2 ? 1.9 + 1.5 * high : 0.35;
+  const hemiSky = mixColor('#1b2644', '#8c9fd0', day).lerp(new THREE.Color('#bcd7ff'), high);
+  const hemiGround = mixColor('#0a0c10', '#4a3c2a', day).lerp(new THREE.Color('#4a5a35'), high);
+  const fog = mixColor('#0b1020', '#d6b08a', day).lerp(new THREE.Color('#c7d6e4'), high);
+  return {
+    elevation, azimuth,
+    sun: { color: sunColor, intensity: sunIntensity },
+    hemi: { sky: hemiSky, ground: hemiGround, intensity: 0.12 + 0.45 * day },
+    fog: { color: fog, near: 40 + 50 * day, far: 420 + 230 * day },
+    sky: {
+      turbidity: night > 0.5 ? 2 : 10 - 6.5 * high,
+      rayleigh: night > 0.5 ? 0.5 : 3.5 - 1.9 * high,
+      mie: night > 0.5 ? 0.002 : 0.026 - 0.022 * high,
+      mieG: 0.7 + 0.16 * day,
+    },
+    exposure: 1.2 - 0.38 * high,
+    envIntensity: 0.6 + 0.3 * day,
+    stars: 1 - smoothstep(-9, 1, elevation),
+    water: mixColor('#0a1a28', '#2a4a5a', day).lerp(new THREE.Color('#1f4f5e'), high),
+    cabin: 1.0 + 0.6 * day * (1 - high) + 0.0 * high,
+    lightsAuto: elevation < 14,
+    dusk,
+  };
+}
+
+/** Heures des ambiances rapides. */
+export const HOURS = { day: 13, evening: 19.3, night: 23 };
+
 /**
  * Installe le décor. `sun` est la lumière directionnelle principale,
  * `cabin` la lumière d'habitacle (modulée selon l'ambiance).
@@ -484,7 +529,6 @@ export function buildEnvironment({ scene, renderer, sun, cabin }) {
 
   const env = {
     sky, terrain, meadow, grass, conifers, broadleaves, rocks, water, stars, hemi, sunDir,
-    preset: 'evening',
 
     /** Reflets : capture du décor sans la voiture ni l'aménagement. */
     captureEnvironment(hidden = []) {
@@ -503,9 +547,13 @@ export function buildEnvironment({ scene, renderer, sun, cabin }) {
       scene.environment = envTexture;
     },
 
-    setPreset(name) {
-      const p = PRESETS[name] || PRESETS.evening;
-      env.preset = name;
+    hour: HOURS.evening,
+    panorama: null,
+
+    /** Applique l'éclairage d'une heure (0 → 24). Retourne les paramètres calculés. */
+    setHour(hour) {
+      const p = lightingForHour(hour);
+      env.hour = hour;
       const u = sky.material.uniforms;
       u.turbidity.value = p.sky.turbidity;
       u.rayleigh.value = p.sky.rayleigh;
@@ -514,26 +562,57 @@ export function buildEnvironment({ scene, renderer, sun, cabin }) {
       sunDir.setFromSphericalCoords(1, Math.PI / 2 - THREE.MathUtils.degToRad(p.elevation), THREE.MathUtils.degToRad(p.azimuth));
       u.sunPosition.value.copy(sunDir);
       moonSun.position.copy(sunDir).multiplyScalar(30);
-      if (p.elevation < 0) {
-        // Lune : haute, opposée au soleil couché.
+      if (p.elevation < -2) {
+        // Lune : haute, à l'opposé du soleil couché.
         moonSun.position.setFromSphericalCoords(30, Math.PI / 2 - THREE.MathUtils.degToRad(42), THREE.MathUtils.degToRad(p.azimuth + 150));
       }
-      moonSun.color.set(p.sun.color);
+      moonSun.color.copy(p.sun.color);
       moonSun.intensity = p.sun.intensity;
-      hemi.color.set(p.hemi.sky);
-      hemi.groundColor.set(p.hemi.ground);
+      hemi.color.copy(p.hemi.sky);
+      hemi.groundColor.copy(p.hemi.ground);
       hemi.intensity = p.hemi.intensity;
-      scene.fog.color.set(p.fog.color);
+      scene.fog.color.copy(p.fog.color);
       scene.fog.near = p.fog.near;
       scene.fog.far = p.fog.far;
       renderer.toneMappingExposure = p.exposure;
       scene.environmentIntensity = p.envIntensity;
-      stars.visible = p.stars > 0;
+      stars.visible = p.stars > 0.02;
       stars.material.opacity = p.stars;
       water.material.uniforms.sunDirection.value.copy(moonSun.position).normalize();
-      water.material.uniforms.sunColor.value.set(p.sun.color);
-      water.material.uniforms.waterColor.value.set(p.water);
+      water.material.uniforms.sunColor.value.copy(p.sun.color);
+      water.material.uniforms.waterColor.value.copy(p.water);
       if (cabin) cabin.intensity = p.cabin;
+      return p;
+    },
+
+    setPreset(name) {
+      return env.setHour(HOURS[name] ?? HOURS.evening);
+    },
+
+    /**
+     * Panorama 360° (image équirectangulaire) en remplacement du ciel procédural.
+     * Le relief reste ; passer null pour revenir au ciel calculé.
+     */
+    async setPanorama(url) {
+      if (!url) {
+        if (env.panorama) env.panorama.dispose();
+        env.panorama = null;
+        scene.background = null;
+        sky.visible = true;
+        return;
+      }
+      const tex = await new THREE.TextureLoader().loadAsync(url);
+      tex.mapping = THREE.EquirectangularReflectionMapping;
+      tex.colorSpace = THREE.SRGBColorSpace;
+      env.panorama = tex;
+      scene.background = tex;
+      sky.visible = false;
+    },
+
+    /** Qualité du décor : 'eco' masque les touffes d'herbe et les étoiles lointaines. */
+    setQuality(level) {
+      grass.visible = level !== 'eco';
+      rocks.visible = true;
     },
 
     update(dt) {
@@ -541,6 +620,6 @@ export function buildEnvironment({ scene, renderer, sun, cabin }) {
     },
   };
 
-  env.setPreset('evening');
+  env.setHour(HOURS.evening);
   return env;
 }

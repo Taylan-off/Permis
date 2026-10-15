@@ -20,7 +20,18 @@ pièces séparées, animables.
   carrosserie transparente, tableau des cotes.
 - Décor de montagne léger et entièrement procédural (`src/environment.js`) : ciel
   atmosphérique, relief par bruit simplex (un seul maillage), prairie texturée,
-  sapins instanciés. Aucune ressource lourde à télécharger.
+  touffes d'herbe, sapins et feuillus instanciés, rochers, lac à reflets, étoiles.
+- **Heure continue** (lever 6 h, coucher 20 h) avec raccourcis midi / golden hour /
+  nuit ; feux, lune et étoiles suivent automatiquement.
+- Rendu « façon ray tracing » : reflets du vrai décor sur la carrosserie (capture
+  cubique), occlusion ambiante GTAO, bloom, MSAA, tone mapping ACES.
+- Feux allumés : phares avec projecteurs modelés et faisceaux visibles, feux
+  arrière LED, plaque, tableau de bord. Capot ouvrable (découpé du châssis au
+  chargement) sur compartiment moteur simplifié. Jantes aluminium.
+- Garniture de toit étoilée (façon Rolls-Royce Starlight), 570 points scintillants.
+- **Mode photo** : rendu Full HD / QHD / 4K de la vue actuelle en qualité maximale,
+  à l'heure choisie, téléchargeable.
+- Trois modes de performance : Éco (sans effets), Standard, Ultra (iPad Pro, PC).
 
 ## Lancer le projet
 
@@ -44,6 +55,9 @@ npm run preview  # prévisualise le build
 - `src/interior.js` : aménagement (cotes dans `LAYOUT`).
 - `src/main.js` : scène, caméra, animations, interface.
 - `tools/yft2gltf/` : convertisseur Rust `.yft` + `.ytd` (GTA V) → `.glb`.
+- `tools/usd2gltf.py` : convertisseur USD/USDZ → `.glb` (maillages + matériaux PBR),
+  utilisé pour évaluer des décors tiers. `env.setPanorama(url)` accepte aussi une
+  image 360° équirectangulaire à la place du ciel procédural.
 
 ## Cotes relevées sur le modèle (repère : X avant, Y haut, Z côté passager)
 

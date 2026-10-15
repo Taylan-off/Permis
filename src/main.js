@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { buildEnvironment, PRESETS } from './environment.js';
+import { buildEnvironment, lightingForHour } from './environment.js';
 import { createPostFX } from './postfx.js';
 import { loadVehicle, PART_NODES } from './vehicle.js';
 import { buildInterior, layoutSpecs } from './interior.js';
@@ -25,7 +25,8 @@ const controls = new OrbitControls(camera, canvas);
 controls.target.set(0, 0.8, 0);
 controls.enableDamping = true;
 controls.dampingFactor = 0.08;
-controls.maxPolarAngle = Math.PI / 2 - 0.02;
+// On peut regarder vers le plafond (garniture étoilée) ; la caméra reste au-dessus du sol (voir la boucle).
+controls.maxPolarAngle = Math.PI - 0.08;
 controls.minDistance = 0.2;
 controls.maxDistance = 16;
 
@@ -170,25 +171,142 @@ const paintInput = document.querySelector('[data-option="paint"]');
 paintInput.addEventListener('input', (e) => vehicle?.setPaint(e.target.value));
 document.querySelector('[data-option="xray"]').addEventListener('change', (e) => vehicle?.setXray(e.target.checked));
 
-// Ambiance, feux, qualité.
-const presetSelect = document.querySelector('[data-option="preset"]');
+// ---------- Heure, feux, performance ----------
+const hourInput = document.querySelector('[data-option="hour"]');
+const hourValue = document.getElementById('hour-value');
 const lightsBox = document.querySelector('[data-option="lights"]');
-const qualityBox = document.querySelector('[data-option="quality"]');
-function applyPreset() {
-  env.setPreset(presetSelect.value);
-  // Reflets : le décor est capturé sans la voiture ni l'aménagement.
+const starlightBox = document.querySelector('[data-option="starlight"]');
+const qualitySelect = document.querySelector('[data-option="quality"]');
+
+const formatHour = (h) => `${Math.floor(h)} h ${String(Math.round((h % 1) * 60)).padStart(2, '0')}`;
+
+/** Reflets : le décor est capturé sans la voiture ni l'aménagement. */
+function captureReflections() {
   const hidden = [interior];
   if (vehicle) hidden.push(vehicle.group);
   env.captureEnvironment(hidden);
-  vehicle?.setLights(lightsBox.checked);
 }
-presetSelect.addEventListener('change', () => {
-  lightsBox.checked = PRESETS[presetSelect.value].stars > 0 || presetSelect.value === 'evening';
-  applyPreset();
-});
+
+let captureTimer = null;
+function applyHour(hour, { immediateCapture = false } = {}) {
+  const p = env.setHour(hour);
+  hourInput.value = hour;
+  hourValue.textContent = formatHour(hour);
+  lightsBox.checked = p.lightsAuto;
+  vehicle?.setLights(lightsBox.checked);
+  clearTimeout(captureTimer);
+  if (immediateCapture) captureReflections();
+  else captureTimer = setTimeout(captureReflections, 250);
+}
+
+function applyPreset() {
+  applyHour(Number(hourInput.value), { immediateCapture: true });
+  vehicle?.setStarlight(starlightBox.checked);
+}
+
+hourInput.addEventListener('input', () => applyHour(Number(hourInput.value)));
+for (const b of document.querySelectorAll('[data-hour]')) {
+  b.addEventListener('click', () => applyHour(Number(b.dataset.hour), { immediateCapture: true }));
+}
 lightsBox.addEventListener('change', () => vehicle?.setLights(lightsBox.checked));
-qualityBox.addEventListener('change', () => postfx.setQuality(qualityBox.checked));
-postfx.setQuality(qualityBox.checked);
+starlightBox.addEventListener('change', () => vehicle?.setStarlight(starlightBox.checked));
+
+const GTAO_PARAMS = {
+  eco: null,
+  standard: { radius: 0.5, distanceExponent: 1, thickness: 1, scale: 1.1, samples: 12, distanceFallOff: 1, screenSpaceRadius: false },
+  ultra: { radius: 0.55, distanceExponent: 1, thickness: 1, scale: 1.2, samples: 24, distanceFallOff: 1, screenSpaceRadius: false },
+  photo: { radius: 0.55, distanceExponent: 1, thickness: 1, scale: 1.25, samples: 40, distanceFallOff: 1, screenSpaceRadius: false },
+};
+
+function applyQuality(level) {
+  const dpr = window.devicePixelRatio || 1;
+  const pr = level === 'eco' ? 1 : level === 'ultra' ? Math.min(dpr, 2) : Math.min(dpr, 1.5);
+  renderer.setPixelRatio(pr);
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  postfx.setSize(window.innerWidth, window.innerHeight);
+  postfx.setQuality(level !== 'eco');
+  if (GTAO_PARAMS[level]) postfx.gtao.updateGtaoMaterial(GTAO_PARAMS[level]);
+  const shadowSize = level === 'ultra' ? 4096 : 2048;
+  if (sun.shadow.mapSize.x !== shadowSize) {
+    sun.shadow.mapSize.set(shadowSize, shadowSize);
+    if (sun.shadow.map) { sun.shadow.map.dispose(); sun.shadow.map = null; }
+  }
+  env.setQuality(level);
+}
+qualitySelect.addEventListener('change', () => applyQuality(qualitySelect.value));
+applyQuality(qualitySelect.value);
+
+// ---------- Mode photo ----------
+const photoModal = document.getElementById('photo');
+const photoHour = document.getElementById('photo-hour');
+const photoHourValue = document.getElementById('photo-hour-value');
+const photoRes = document.getElementById('photo-res');
+const photoGo = document.getElementById('photo-go');
+const photoResult = document.getElementById('photo-result');
+const photoImg = document.getElementById('photo-img');
+const photoSave = document.getElementById('photo-save');
+
+document.querySelector('[data-action="photo"]').addEventListener('click', () => {
+  photoHour.value = hourInput.value;
+  photoHourValue.textContent = formatHour(Number(photoHour.value));
+  photoResult.classList.add('hidden');
+  photoModal.classList.remove('hidden');
+});
+document.getElementById('photo-close').addEventListener('click', () => photoModal.classList.add('hidden'));
+photoHour.addEventListener('input', () => { photoHourValue.textContent = formatHour(Number(photoHour.value)); });
+for (const b of document.querySelectorAll('[data-photo-hour]')) {
+  b.addEventListener('click', () => { photoHour.value = b.dataset.photoHour; photoHourValue.textContent = formatHour(Number(photoHour.value)); });
+}
+
+/** Rend la vue actuelle à la résolution demandée, en qualité maximale, et retourne un PNG. */
+async function renderPhoto(width, height, hour) {
+  const prevHour = Number(hourInput.value);
+  const prevQuality = qualitySelect.value;
+  const prevPR = renderer.getPixelRatio();
+  const prevAspect = camera.aspect;
+  try {
+    applyHour(hour, { immediateCapture: true });
+    renderer.setPixelRatio(1);
+    renderer.setSize(width, height, false);
+    postfx.setSize(width, height);
+    postfx.setQuality(true);
+    postfx.gtao.updateGtaoMaterial(GTAO_PARAMS.photo);
+    camera.aspect = width / height;
+    camera.updateProjectionMatrix();
+    postfx.render();
+    const blob = await new Promise((resolve) => renderer.domElement.toBlob(resolve, 'image/png'));
+    return blob;
+  } finally {
+    renderer.setPixelRatio(prevPR);
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    postfx.setSize(window.innerWidth, window.innerHeight);
+    camera.aspect = prevAspect;
+    camera.updateProjectionMatrix();
+    applyQuality(prevQuality);
+    applyHour(prevHour, { immediateCapture: true });
+  }
+}
+
+photoGo.addEventListener('click', async () => {
+  const [w, h] = photoRes.value.split('x').map(Number);
+  photoGo.classList.add('busy');
+  photoGo.textContent = 'Rendu en cours…';
+  try {
+    const blob = await renderPhoto(w, h, Number(photoHour.value));
+    if (photoImg.src) URL.revokeObjectURL(photoImg.src);
+    const url = URL.createObjectURL(blob);
+    photoImg.src = url;
+    photoSave.href = url;
+    photoSave.download = `touran-camper-${w}x${h}.png`;
+    photoResult.classList.remove('hidden');
+  } catch (err) {
+    console.error(err);
+    alert(`La photo n'a pas pu être générée : ${err.message}`);
+  } finally {
+    photoGo.classList.remove('busy');
+    photoGo.textContent = 'Générer la photo';
+  }
+});
 
 const cutInput = document.querySelector('[data-option="cut"]');
 const cutValue = document.getElementById('cut-value');
@@ -217,6 +335,7 @@ const VIEWS = {
   top: { pos: [0.01, 9, 0.01], target: [0, 0.5, 0] },
   tailgate: { pos: [-3.6, 1.45, 0.3], target: [-0.6, 0.8, 0], open: 'tailgate' },
   inside: { pos: [-0.5, 1.3, 0], target: [-3.5, 0.8, 0], open: 'tailgate' },
+  starlight: { pos: [-0.35, 1.05, 0.08], target: [-1.1, 2.4, -0.05] },
 };
 let camAnim = null;
 function goToView(name) {
@@ -282,7 +401,9 @@ function animate() {
   }
 
   env.update(dt);
+  vehicle?.update(dt);
   controls.update();
+  if (camera.position.y < 0.12) camera.position.y = 0.12; // jamais sous le sol
   postfx.render();
   requestAnimationFrame(animate);
 }
@@ -296,4 +417,4 @@ window.addEventListener('resize', () => {
 });
 
 // Accès de débogage (page measure.html et tests).
-window.__app = { THREE, scene, renderer, camera, controls, groups, env, postfx, get vehicle() { return vehicle; }, setOpen, goToView, applyPreset };
+window.__app = { THREE, scene, renderer, camera, controls, groups, env, postfx, get vehicle() { return vehicle; }, setOpen, goToView, applyPreset, applyHour, applyQuality, renderPhoto, lightingForHour };
