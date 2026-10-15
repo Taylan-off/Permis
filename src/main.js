@@ -19,7 +19,7 @@ renderer.localClippingEnabled = true;
 const scene = new THREE.Scene();
 
 const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.05, 12000);
-camera.position.set(5.2, 2.2, -4.4);
+camera.position.set(5.6, 1.9, 2.9);
 
 const controls = new OrbitControls(camera, canvas);
 controls.target.set(0, 0.8, 0);
@@ -373,10 +373,11 @@ const panel = document.getElementById('panel');
 document.getElementById('panel-toggle').addEventListener('click', () => panel.classList.toggle('hidden'));
 
 // ---------- Vues prédéfinies ----------
+// Vues choisies dans les directions dégagées de la forêt (côté passager, axe de la route).
 const VIEWS = {
-  front: { pos: [5.2, 2.2, -4.4], target: [0, 0.8, 0] },
-  rear: { pos: [-5.4, 2.3, -4.2], target: [0, 0.8, 0] },
-  side: { pos: [0.2, 1.4, -6.8], target: [0, 0.8, 0] },
+  front: { pos: [5.6, 1.9, 2.9], target: [0, 0.8, 0] },
+  rear: { pos: [-5.6, 2.0, 3.2], target: [0, 0.8, 0] },
+  side: { pos: [0.3, 1.4, 4.6], target: [0, 0.8, 0] },
   top: { pos: [0.01, 9, 0.01], target: [0, 0.5, 0] },
   tailgate: { pos: [-3.6, 1.45, 0.3], target: [-0.6, 0.8, 0], open: 'tailgate' },
   inside: { pos: [-0.5, 1.3, 0], target: [-3.5, 0.8, 0], open: 'tailgate' },
