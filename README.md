@@ -18,6 +18,10 @@ pièces séparées, animables.
   portes arrière, caisses de rangement.
 - Vues prédéfinies, **coupe horizontale réglable** pour voir l'intérieur de dessus,
   carrosserie transparente, tableau des cotes.
+- **Décor « Route forestière »** : la scène USDZ fournie (Sketchfab, « Dirt Road Through
+  Forest »), convertie avec `tools/usd2gltf.py`, agrandie ×8 et posée pour que la
+  voiture soit garée sur la ligne droite de la route (`src/forest.js`). Chargée en
+  module séparé après le véhicule.
 - Décor de montagne léger et entièrement procédural (`src/environment.js`) : ciel
   atmosphérique, relief par bruit simplex (un seul maillage), prairie texturée,
   touffes d'herbe, sapins et feuillus instanciés, rochers, lac à reflets, étoiles.
@@ -55,9 +59,9 @@ npm run preview  # prévisualise le build
 - `src/interior.js` : aménagement (cotes dans `LAYOUT`).
 - `src/main.js` : scène, caméra, animations, interface.
 - `tools/yft2gltf/` : convertisseur Rust `.yft` + `.ytd` (GTA V) → `.glb`.
-- `tools/usd2gltf.py` : convertisseur USD/USDZ → `.glb` (maillages + matériaux PBR),
-  utilisé pour évaluer des décors tiers. `env.setPanorama(url)` accepte aussi une
-  image 360° équirectangulaire à la place du ciel procédural.
+- `tools/usd2gltf.py` : convertisseur USD/USDZ → `.glb` (maillages, UV, matériaux PBR,
+  textures WebP). `src/assets/forest.glb` en est issu. `env.setPanorama(url)` accepte
+  aussi une image 360° équirectangulaire à la place du ciel procédural.
 
 ## Cotes relevées sur le modèle (repère : X avant, Y haut, Z côté passager)
 

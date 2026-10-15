@@ -211,7 +211,13 @@ def main():
 
         # UV.
         uv = None
-        pv = UsdGeom.PrimvarsAPI(prim).GetPrimvar('st')
+        pvapi = UsdGeom.PrimvarsAPI(prim)
+        pv = None
+        # Le jeu d'UV peut s'appeler st, st0, uv, UVMap… : on prend le premier texCoord2f.
+        for cand in [pvapi.GetPrimvar('st')] + [p for p in pvapi.GetPrimvars() if p.GetTypeName().role == 'TextureCoordinate' or p.GetPrimvarName().lower().startswith(('st', 'uv'))]:
+            if cand and cand.HasValue():
+                pv = cand
+                break
         if pv and pv.HasValue():
             vals = np.asarray(pv.Get(), dtype=np.float64)
             idx = pv.GetIndices()

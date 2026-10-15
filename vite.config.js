@@ -8,7 +8,7 @@ export default defineConfig({
   assetsInclude: ['**/*.glb'],
   build: {
     outDir: 'dist',
-    assetsInlineLimit: inlineModel ? 8 * 1024 * 1024 : 4096,
+    assetsInlineLimit: inlineModel ? 32 * 1024 * 1024 : 4096,
     chunkSizeWarningLimit: 4000,
   },
 });

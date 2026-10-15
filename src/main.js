@@ -111,21 +111,50 @@ let vehicle = null;
 const loading = document.getElementById('loading');
 const loadingPct = document.getElementById('loading-pct');
 
-loadVehicle((e) => {
-  if (e.total) loadingPct.textContent = `${Math.round((e.loaded / e.total) * 100)} %`;
-}).then((v) => {
-  vehicle = v;
-  scene.add(v.group);
-  for (const [id, node] of Object.entries(v.parts)) openables[id] = node;
-  applyVisibility();
-  applyExtension();
-  v.setPaint(paintInput.value);
-  applyPreset();
-  loading.classList.add('done');
-}).catch((err) => {
-  loading.querySelector('p').textContent = `Impossible de charger le modèle : ${err.message}`;
-  console.error(err);
-});
+let forest = null;
+const decorSelect = document.querySelector('[data-option="decor"]');
+
+function applyDecor() {
+  const name = decorSelect.value;
+  env.setDecor(forest && name === 'forest' ? 'forest' : 'mountains');
+  if (forest) forest.root.visible = name === 'forest';
+  captureReflections();
+}
+
+(async () => {
+  try {
+    const v = await loadVehicle((e) => {
+      if (e.total) loadingPct.textContent = `${Math.round((e.loaded / e.total) * 100)} %`;
+    });
+    vehicle = v;
+    scene.add(v.group);
+    for (const [id, node] of Object.entries(v.parts)) openables[id] = node;
+    applyVisibility();
+    applyExtension();
+    v.setPaint(paintInput.value);
+    loading.querySelector('p').firstChild.textContent = 'Chargement du décor… ';
+    loadingPct.textContent = '';
+    try {
+      // Module séparé : le décor (10 Mo) est chargé après le véhicule, en chunk distinct.
+      const { loadForest } = await import('./forest.js');
+      forest = await loadForest((e) => {
+        if (e.total) loadingPct.textContent = `${Math.round((e.loaded / e.total) * 100)} %`;
+      });
+      scene.add(forest.root);
+    } catch (err) {
+      console.error('Décor forêt indisponible, repli sur les montagnes', err);
+      decorSelect.value = 'mountains';
+      decorSelect.disabled = true;
+    }
+    applyDecor();
+    applyPreset();
+    loading.classList.add('done');
+  } catch (err) {
+    loading.querySelector('p').textContent = `Impossible de charger le modèle : ${err.message}`;
+    console.error(err);
+  }
+})();
+decorSelect.addEventListener('change', applyDecor);
 
 // ---------- Aménagement : visibilité ----------
 const showBoxes = [...document.querySelectorAll('[data-show]')];
@@ -433,4 +462,4 @@ window.addEventListener('resize', () => {
 });
 
 // Accès de débogage (page measure.html et tests).
-window.__app = { THREE, scene, renderer, camera, controls, groups, env, postfx, get vehicle() { return vehicle; }, setOpen, goToView, applyPreset, applyHour, applyQuality, renderPhoto, lightingForHour };
+window.__app = { THREE, scene, renderer, camera, controls, groups, env, postfx, get vehicle() { return vehicle; }, get forest() { return forest; }, setOpen, goToView, applyPreset, applyHour, applyQuality, applyDecor, renderPhoto, lightingForHour };

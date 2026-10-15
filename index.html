@@ -63,6 +63,12 @@
           <button data-view="inside">Allongé dans le lit</button>
           <button data-view="starlight" class="wide">Ciel étoilé de la garniture</button>
         </div>
+        <label class="select">Décor
+          <select data-option="decor">
+            <option value="forest" selected>Route forestière (fichier)</option>
+            <option value="mountains">Montagnes (procédural)</option>
+          </select>
+        </label>
         <label class="slider">
           <span>Heure <output id="hour-value">19 h 18</output></span>
           <input type="range" data-option="hour" min="0" max="24" value="19.3" step="0.1" />

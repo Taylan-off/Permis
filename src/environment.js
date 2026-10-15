@@ -609,10 +609,35 @@ export function buildEnvironment({ scene, renderer, sun, cabin }) {
       sky.visible = false;
     },
 
-    /** Qualité du décor : 'eco' masque les touffes d'herbe et les étoiles lointaines. */
+    decor: 'mountains',
+    quality: 'standard',
+
+    /**
+     * Décor : 'mountains' (procédural complet) ou 'forest' (scène fournie, posée
+     * par-dessus). En mode forêt, le relief procédural descend de 24 m pour ne
+     * jamais percer la scène importée, et les éléments proches sont masqués ;
+     * les sommets lointains, le ciel, la brume et les étoiles restent.
+     */
+    setDecor(name) {
+      env.decor = name;
+      const forest = name === 'forest';
+      terrain.position.y = forest ? -24 : 0;
+      meadow.visible = !forest;
+      water.visible = !forest;
+      conifers.visible = !forest;
+      broadleaves.visible = !forest;
+      rocks.visible = !forest;
+      env.applyQuality();
+    },
+
+    /** Qualité du décor : 'eco' masque les touffes d'herbe. */
     setQuality(level) {
-      grass.visible = level !== 'eco';
-      rocks.visible = true;
+      env.quality = level;
+      env.applyQuality();
+    },
+
+    applyQuality() {
+      grass.visible = env.quality !== 'eco' && env.decor !== 'forest';
     },
 
     update(dt) {
