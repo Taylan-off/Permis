@@ -22,7 +22,9 @@ let renderRequested = true;
 let lastRender = 0;
 
 const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.05, 7000);
-camera.position.set(-7.2, 3.6, 3.4);
+camera.position.set(-10.1, 5.0, 4.8);
+camera.fov = 32;
+camera.updateProjectionMatrix();
 
 const controls = new OrbitControls(camera, canvas);
 controls.target.set(0, 0.8, 0);
@@ -453,13 +455,14 @@ document.getElementById('panel-toggle').addEventListener('click', () => panel.cl
 // Vues choisies dans les directions dégagées de la forêt (côté passager, axe de la route).
 const VIEWS = {
   // Positions relevées comme dégagées (aucun arbre entre la caméra et la voiture).
-  front: { pos: [8.0, 3.2, 0.4], target: [0, 0.7, 0] },
-  rear: { pos: [-7.2, 3.6, 3.4], target: [0, 0.7, 0] },
-  side: { pos: [-5.6, 2.2, 3.3], target: [0, 0.7, 0] },
+  // Trois-quarts et profil : focale plus longue (32°), caméra reculée d'autant.
+  front: { pos: [11.2, 4.5, 0.6], target: [0, 0.7, 0], fov: 32 },
+  rear: { pos: [-10.1, 5.0, 4.8], target: [0, 0.7, 0], fov: 32 },
+  side: { pos: [-7.8, 3.1, 4.6], target: [0, 0.7, 0], fov: 32 },
   top: { pos: [0.01, 12, 0.01], target: [0, 0.5, 0] },
-  tailgate: { pos: [-3.6, 1.45, 0.3], target: [-0.6, 0.8, 0], open: 'tailgate' },
-  inside: { pos: [-0.5, 1.3, 0], target: [-3.5, 0.8, 0], open: 'tailgate', firstPerson: true },
-  starlight: { pos: [-0.35, 1.05, 0.08], target: [-1.1, 2.4, -0.05], firstPerson: true },
+  tailgate: { pos: [-3.6, 1.45, 0.3], target: [-0.6, 0.8, 0], open: 'tailgate', fov: 50 },
+  inside: { pos: [-0.5, 1.3, 0], target: [-3.5, 0.8, 0], open: 'tailgate', firstPerson: true, fov: 70 },
+  starlight: { pos: [-0.35, 1.05, 0.08], target: [-1.1, 2.4, -0.05], firstPerson: true, fov: 70 },
 };
 let camAnim = null;
 let firstPerson = false;
@@ -494,6 +497,8 @@ function goToView(name) {
     toPos: new THREE.Vector3(...v.pos),
     toTarget: new THREE.Vector3(...v.target),
     firstPerson: !!v.firstPerson,
+    fromFov: camera.fov,
+    toFov: v.fov ?? 45,
   };
 }
 for (const b of document.querySelectorAll('[data-view]')) {
@@ -554,6 +559,10 @@ function animate() {
     const k = easeInOut(camAnim.t);
     camera.position.lerpVectors(camAnim.fromPos, camAnim.toPos, k);
     controls.target.lerpVectors(camAnim.fromTarget, camAnim.toTarget, k);
+    camera.fov = camAnim.fromFov + (camAnim.toFov - camAnim.fromFov) * k;
+    camera.updateProjectionMatrix();
+    fovInput.value = Math.round(camera.fov);
+    fovValue.textContent = `${Math.round(camera.fov)}°`;
     if (camAnim.t >= 1) {
       const fp = camAnim.firstPerson;
       camAnim = null;
