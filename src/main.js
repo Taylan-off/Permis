@@ -22,7 +22,7 @@ let renderRequested = true;
 let lastRender = 0;
 
 const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.05, 7000);
-camera.position.set(-10.1, 5.0, 4.8);
+camera.position.set(-7.8, 4.5, 7.8);
 camera.fov = 32;
 camera.updateProjectionMatrix();
 
@@ -457,7 +457,7 @@ const VIEWS = {
   // Positions relevées comme dégagées (aucun arbre entre la caméra et la voiture).
   // Trois-quarts et profil : focale plus longue (32°), caméra reculée d'autant.
   front: { pos: [11.2, 4.5, 0.6], target: [0, 0.7, 0], fov: 32 },
-  rear: { pos: [-10.1, 5.0, 4.8], target: [0, 0.7, 0], fov: 32 },
+  rear: { pos: [-7.8, 4.5, 7.8], target: [0, 0.7, 0], fov: 32 },
   side: { pos: [-7.8, 3.1, 4.6], target: [0, 0.7, 0], fov: 32 },
   top: { pos: [0.01, 12, 0.01], target: [0, 0.5, 0] },
   tailgate: { pos: [-3.6, 1.45, 0.3], target: [-0.6, 0.8, 0], open: 'tailgate', fov: 50 },
