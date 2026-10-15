@@ -13,7 +13,7 @@ export const FOREST_PLACEMENT = {
   scale: 16.5,
   // Ligne droite du bas de la route (emplacement d'origine), décalée de 2,5 m vers
   // l'arrière de la voiture, là où le bord de route est le plus dégagé.
-  origin: [-0.04, 4.67, 1.27],
+  origin: [0.02, 4.67, 1.27],
   rotationDeg: 0,
 };
 
@@ -34,6 +34,22 @@ export async function loadForest(onProgress) {
   // tous les sapins…) : impossible à écarter du rendu quand ils sortent du champ.
   // On les découpe en dalles de 14 m ; chaque dalle est éliminée hors champ
   // (frustum) et au-delà de la distance d'affichage.
+  // Clairière : les arbres (troncs et houppiers) à moins de CLEAR_RADIUS de la
+  // voiture sont supprimés pour que la caméra puisse tourner sans collision.
+  const CLEAR_RADIUS = 9;
+  const vv = new THREE.Vector3();
+  root.traverse((o) => {
+    if (!o.isMesh || !o.geometry.index || !/Atlas_0$|Atlas_0_1$|Trunk|Bush/.test(o.name)) return;
+    const pos = o.geometry.attributes.position;
+    const idx = o.geometry.index.array;
+    const keep = [];
+    for (let t = 0; t < idx.length; t += 3) {
+      vv.fromBufferAttribute(pos, idx[t]).applyMatrix4(o.matrixWorld);
+      if (Math.hypot(vv.x, vv.z) >= CLEAR_RADIUS) keep.push(idx[t], idx[t + 1], idx[t + 2]);
+    }
+    if (keep.length !== idx.length) o.geometry.setIndex(keep);
+  });
+
   const CELL = 14;
   const toSplit = [];
   root.traverse((o) => { if (o.isMesh && o.geometry.index && o.geometry.index.count > 3000) toSplit.push(o); });
