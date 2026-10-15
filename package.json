@@ -7,6 +7,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "build:inline": "INLINE_MODEL=1 vite build",
     "preview": "vite preview"
   },
   "dependencies": {

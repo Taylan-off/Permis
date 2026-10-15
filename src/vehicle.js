@@ -15,7 +15,9 @@ import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
  * vers -Z, et posé au sol (y = 0).
  */
 
-const MODEL_URL = `${import.meta.env.BASE_URL}models/touran.glb`;
+// Importé par Vite : fichier séparé en build normal, intégré en data URL avec
+// `npm run build:inline` (hébergements qui ne servent pas le .glb).
+import MODEL_URL from './assets/touran.glb?url';
 
 /** Ouvrants : nœud glTF, axe local et angle d'ouverture (rad). */
 export const PART_NODES = {

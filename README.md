@@ -25,6 +25,7 @@ pièces séparées, animables.
 npm install
 npm run dev      # serveur de développement (http://localhost:5173)
 npm run build    # génère le site statique dans dist/
+npm run build:inline  # idem, modèle 3D intégré dans le JS (hébergement sans .glb)
 npm run preview  # prévisualise le build
 ```
 
@@ -33,7 +34,7 @@ npm run preview  # prévisualise le build
 
 ## Structure
 
-- `public/models/touran.glb` : le véhicule (glTF compressé meshopt + WebP, 1,7 Mo).
+- `src/assets/touran.glb` : le véhicule (glTF compressé meshopt + WebP, 1,7 Mo).
 - `src/vehicle.js` : chargement du modèle, matériaux, séparation des sièges, ouvrants.
 - `src/interior.js` : aménagement (cotes dans `LAYOUT`).
 - `src/main.js` : scène, caméra, animations, interface.
