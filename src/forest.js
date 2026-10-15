@@ -29,18 +29,60 @@ export async function loadForest(onProgress) {
   root.scale.setScalar(S);
   root.position.copy(new THREE.Vector3(...P).multiplyScalar(-S).applyQuaternion(q));
   root.name = 'forest';
+  root.updateMatrixWorld(true);
+  // Les maillages du fichier couvrent chacun toute la scène (un seul maillage pour
+  // tous les sapins…) : impossible à écarter du rendu quand ils sortent du champ.
+  // On les découpe en dalles de 14 m ; chaque dalle est éliminée hors champ
+  // (frustum) et au-delà de la distance d'affichage.
+  const CELL = 14;
+  const toSplit = [];
+  root.traverse((o) => { if (o.isMesh && o.geometry.index && o.geometry.index.count > 3000) toSplit.push(o); });
+  for (const mesh of toSplit) {
+    const geo = mesh.geometry;
+    const pos = geo.attributes.position;
+    const idx = geo.index.array;
+    const v = new THREE.Vector3();
+    const buckets = new Map();
+    for (let t = 0; t < idx.length; t += 3) {
+      v.fromBufferAttribute(pos, idx[t]).applyMatrix4(mesh.matrixWorld);
+      const key = `${Math.floor(v.x / CELL)},${Math.floor(v.z / CELL)}`;
+      let b = buckets.get(key);
+      if (!b) { b = []; buckets.set(key, b); }
+      b.push(idx[t], idx[t + 1], idx[t + 2]);
+    }
+    if (buckets.size < 2) continue;
+    const parent = mesh.parent;
+    parent.remove(mesh);
+    for (const [key, ids] of buckets) {
+      const g = new THREE.BufferGeometry();
+      for (const [k, attr] of Object.entries(geo.attributes)) g.setAttribute(k, attr);
+      g.setIndex(ids);
+      g.computeBoundingSphere();
+      const m = new THREE.Mesh(g, mesh.material);
+      m.name = mesh.name;
+      m.position.copy(mesh.position);
+      m.quaternion.copy(mesh.quaternion);
+      m.scale.copy(mesh.scale);
+      m.userData.chunk = key;
+      parent.add(m);
+    }
+  }
+  root.updateMatrixWorld(true);
+
   const meshes = [];
   const foliage = [];
   root.traverse((o) => {
     if (!o.isMesh) return;
     meshes.push(o);
+    o.userData.center = o.geometry.boundingSphere.center.clone().applyMatrix4(o.matrixWorld);
+    o.userData.radius = o.geometry.boundingSphere.radius * o.getWorldScale(new THREE.Vector3()).x;
     o.receiveShadow = true;
     o.castShadow = SOLID.test(o.name);
     if (FOLIAGE.test(o.name)) foliage.push(o);
     const m = o.material;
     if (m) {
       if (m.alphaTest > 0) { m.alphaTest = 0.4; m.side = THREE.DoubleSide; m.alphaToCoverage = true; }
-      if (m.map) m.map.anisotropy = 8;
+      if (m.map) m.map.anisotropy = 4;
       if (m.normalMap) m.normalMap.anisotropy = 2;
       m.envMapIntensity = 0.35;
     }
@@ -62,12 +104,32 @@ export async function loadForest(onProgress) {
     root.updateMatrixWorld(true);
   }
 
-  return {
+  let foliageShadows = false;
+  let viewDistance = 200;
+  const SHADOW_DISTANCE = 45;
+  const camPos = new THREE.Vector3();
+  const api = {
     root,
     meshes,
     /** Ombres des feuillages (coûteuses, floues en basse résolution) : mode Ultra seulement. */
     setFoliageShadows(on) {
-      for (const m of foliage) m.castShadow = on;
+      foliageShadows = on;
+      for (const m of foliage) m.castShadow = on && m.userData.center.length() < SHADOW_DISTANCE;
+    },
+    setViewDistance(d) { viewDistance = d; },
+    get viewDistance() { return viewDistance; },
+    /** À chaque image : masque les dalles trop loin de la caméra ; ombres seulement près de la voiture. */
+    cull(camera) {
+      camera.getWorldPosition(camPos);
+      for (const m of meshes) {
+        const d = m.userData.center.distanceTo(camPos) - m.userData.radius;
+        m.visible = d < viewDistance;
+        if (!m.visible) continue;
+        const nearCar = m.userData.center.length() - m.userData.radius < SHADOW_DISTANCE;
+        m.castShadow = nearCar && (FOLIAGE.test(m.name) ? foliageShadows : SOLID.test(m.name));
+      }
     },
   };
+  api.setFoliageShadows(false);
+  return api;
 }

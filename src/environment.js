@@ -20,10 +20,10 @@ import waterNormalsUrl from './assets/waternormals.jpg';
  */
 
 const TERRAIN_SIZE = 1000;
-const TERRAIN_SEGMENTS = 260;
+const TERRAIN_SEGMENTS = 160;
 const MEADOW_RADIUS = 70;
 const TREE_COUNT = 1100;
-const GRASS_COUNT = 16000;
+const GRASS_COUNT = 9000;
 const ROCK_COUNT = 220;
 const LAKE = { x: -82, z: 98, rx: 52, rz: 38, depth: -4.5, level: -1.0 };
 

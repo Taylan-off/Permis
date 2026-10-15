@@ -8,7 +8,7 @@ import { buildInterior, layoutSpecs } from './interior.js';
 
 // ---------- Scène ----------
 const canvas = document.getElementById('scene');
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.75));
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.shadowMap.enabled = true;
@@ -18,8 +18,10 @@ renderer.toneMappingExposure = 0.75;
 renderer.localClippingEnabled = true;
 
 const scene = new THREE.Scene();
+let renderRequested = true;
+let lastRender = 0;
 
-const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.05, 12000);
+const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.05, 7000);
 camera.position.set(-7.2, 3.6, 3.4);
 
 const controls = new OrbitControls(camera, canvas);
@@ -127,6 +129,7 @@ const REQUIRES = { kitchenDrawer: 'tailgate', drawerL: 'doorRL', drawerR: 'doorR
 
 function setOpen(id, open) {
   if (!state[id]) return;
+  requestRender();
   state[id].open = open;
   if (open && REQUIRES[id]) state[REQUIRES[id]].open = true;
   if (!open) for (const [child, parent] of Object.entries(REQUIRES)) if (parent === id) state[child].open = false;
@@ -155,6 +158,8 @@ function applyDecor() {
   env.setDecor(forest && name === 'forest' ? 'forest' : 'mountains');
   if (forest) forest.root.visible = name === 'forest';
   captureReflections();
+  applyFog();
+  requestRender();
 }
 
 (async () => {
@@ -179,7 +184,7 @@ function applyDecor() {
       });
       scene.add(forest.root);
       registerShadows(forest.root, { cast: false });
-      forest.setFoliageShadows(qualitySelect.value === 'ultra');
+      applyQuality(qualitySelect.value);
     } catch (err) {
       console.error('Décor forêt indisponible, repli sur les montagnes', err);
       decorSelect.value = 'mountains';
@@ -261,6 +266,8 @@ function applyHour(hour, { immediateCapture = false } = {}) {
   cabinRear.intensity = 0;
   cabin.intensity = 0;
   syncSunToCsm();
+  applyFog();
+  requestRender();
   hourInput.value = hour;
   hourValue.textContent = formatHour(hour);
   lightsBox.checked = p.lightsAuto;
@@ -307,6 +314,21 @@ function applyQuality(level) {
   }
   env.setQuality(level);
   forest?.setFoliageShadows(level === 'ultra');
+  // Distance d'affichage du décor : au-delà, les dalles ne sont pas rendues (la brume les cache).
+  const viewDistance = level === 'eco' ? 110 : level === 'ultra' ? 320 : 180;
+  forest?.setViewDistance(viewDistance);
+  csm.maxFar = level === 'ultra' ? 80 : 50;
+  csm.updateFrustums();
+  applyFog();
+  requestRender();
+}
+
+/** En mode forêt, la brume se referme juste avant la distance d'affichage (pas de « pop »). */
+function applyFog() {
+  if (!forest || decorSelect.value !== 'forest') return;
+  const d = forest.viewDistance;
+  scene.fog.near = d * 0.35;
+  scene.fog.far = d * 0.98;
 }
 qualitySelect.addEventListener('change', () => applyQuality(qualitySelect.value));
 applyQuality(qualitySelect.value);
@@ -462,6 +484,7 @@ function setFirstPerson(on) {
 
 function goToView(name) {
   const v = VIEWS[name];
+  requestRender();
   if (v.open) setOpen(v.open, true);
   if (firstPerson && !v.firstPerson) setFirstPerson(false);
   camAnim = {
@@ -497,18 +520,28 @@ canvas.addEventListener('pointerup', (e) => {
 });
 
 // ---------- Boucle ----------
+// Rendu à la demande : on ne redessine que si la caméra, une animation ou un
+// réglage a changé (économie de batterie et de chauffe sur tablette). Quand des
+// éléments animés sont visibles (étoiles de garniture, lac), on garde une cadence réduite.
 const easeInOut = (t) => (t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2);
 const clock = new THREE.Clock();
 const OPEN_DURATION = 0.8;
+function requestRender() { renderRequested = true; }
+controls.addEventListener('change', requestRender);
+document.getElementById('panel').addEventListener('input', requestRender);
+document.getElementById('panel').addEventListener('click', requestRender);
+window.addEventListener('resize', requestRender);
 
 function animate() {
   const dt = Math.min(clock.getDelta(), 0.25);
+  let animating = !!camAnim;
 
   for (const [id, obj] of Object.entries(openables)) {
     const s = state[id];
     const o = OPENINGS[id];
     if (!s || !o) continue;
     const target = s.open ? 1 : 0;
+    if (s.t !== target) animating = true;
     const step = dt / OPEN_DURATION;
     s.t = target > s.t ? Math.min(target, s.t + step) : Math.max(target, s.t - step);
     const value = easeInOut(s.t) * o.open;
@@ -528,12 +561,20 @@ function animate() {
     }
   }
 
-  env.update(dt);
-  vehicle?.update(dt);
   controls.update();
-  csm.update();
   if (camera.position.y < 0.12) camera.position.y = 0.12; // jamais sous le sol
-  postfx.render();
+  const now = performance.now();
+  const idleAnimated = (vehicle?.starlight?.visible && env.hour > 19.5) || decorSelect.value === 'mountains';
+  const due = renderRequested || animating || (idleAnimated && now - lastRender > 80);
+  if (due) {
+    renderRequested = false;
+    lastRender = now;
+    env.update(dt);
+    vehicle?.update(dt);
+    forest?.cull(camera);
+    csm.update();
+    postfx.render();
+  }
   requestAnimationFrame(animate);
 }
 animate();
