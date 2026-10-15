@@ -178,3 +178,62 @@ label.color input[type="color"] {
     max-height: 55%;
   }
 }
+
+/* ── Chargement ─────────────────────────────────────────────────────────── */
+#loading {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  background: var(--bg);
+  color: var(--muted);
+  font-size: 14px;
+  z-index: 10;
+  transition: opacity 0.4s ease;
+}
+
+#loading.done {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.spinner {
+  width: 36px;
+  height: 36px;
+  border: 3px solid rgba(255, 255, 255, 0.12);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.9s linear infinite;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── Curseur de coupe ───────────────────────────────────────────────────── */
+label.slider {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+}
+
+label.slider span {
+  display: flex;
+  justify-content: space-between;
+  color: var(--muted);
+}
+
+label.slider output {
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+label.slider input[type="range"] {
+  width: 100%;
+  accent-color: var(--accent);
+}
+
+#panel header h1 span { color: var(--muted); }
+
+.specs h2 { margin-top: 12px; }

@@ -10,17 +10,22 @@
   <body>
     <canvas id="scene"></canvas>
 
+    <div id="loading">
+      <div class="spinner"></div>
+      <p>Chargement du Touran… <span id="loading-pct"></span></p>
+    </div>
+
     <aside id="panel">
       <header>
         <h1>VW Touran <span>aménagé pour dormir</span></h1>
-        <p class="hint">Clique sur une porte ou le hayon dans la 3D pour l'ouvrir. Glisse pour tourner, molette pour zoomer.</p>
+        <p class="hint">Clique sur une porte ou le hayon dans la 3D pour l'ouvrir. Glisse pour tourner, molette pour zoomer, clic droit pour déplacer.</p>
       </header>
 
       <section>
         <h2>Ouvrants</h2>
         <div class="grid">
-          <button data-toggle="doorFL">Porte AV gauche</button>
-          <button data-toggle="doorFR">Porte AV droite</button>
+          <button data-toggle="doorFL">Porte AV conducteur</button>
+          <button data-toggle="doorFR">Porte AV passager</button>
           <button data-toggle="doorRL">Porte AR gauche</button>
           <button data-toggle="doorRR">Porte AR droite</button>
           <button data-toggle="tailgate" class="wide">Hayon</button>
@@ -36,10 +41,13 @@
         <label><input type="checkbox" data-show="rearSeats" /> Sièges arrière d'origine</label>
         <label><input type="checkbox" data-show="bed" checked /> Plateforme de lit</label>
         <label><input type="checkbox" data-show="mattress" checked /> Matelas et couchage</label>
-        <label><input type="checkbox" data-show="kitchen" checked /> Module cuisine (tiroir)</label>
+        <label><input type="checkbox" data-show="kitchen" checked /> Module cuisine coulissant</label>
         <label><input type="checkbox" data-show="storage" checked /> Rangements sous le lit</label>
-        <div class="row">
-          <button data-toggle="kitchenDrawer">Sortir / rentrer la cuisine</button>
+        <label><input type="checkbox" data-option="extension" /> Sièges avant avancés + rallonge</label>
+        <div class="grid">
+          <button data-toggle="kitchenDrawer" class="wide">Sortir / rentrer la cuisine</button>
+          <button data-toggle="drawerL">Tiroir gauche</button>
+          <button data-toggle="drawerR">Tiroir droit</button>
         </div>
       </section>
 
@@ -50,23 +58,29 @@
           <button data-view="rear">3/4 arrière</button>
           <button data-view="side">Profil</button>
           <button data-view="top">Dessus</button>
-          <button data-view="inside" class="wide">Intérieur (couchage)</button>
+          <button data-view="tailgate">Par le hayon</button>
+          <button data-view="inside">Allongé dans le lit</button>
         </div>
+        <label class="slider">
+          <span>Coupe horizontale <output id="cut-value">off</output></span>
+          <input type="range" data-option="cut" min="0" max="170" value="0" step="1" />
+        </label>
         <label><input type="checkbox" data-option="xray" /> Carrosserie transparente</label>
-        <label><input type="checkbox" data-option="roof" /> Masquer le toit</label>
         <label class="color">Couleur <input type="color" data-option="paint" value="#2b5797" /></label>
       </section>
 
       <section class="specs">
-        <h2>Cotes utiles</h2>
-        <table>
-          <tr><td>Longueur extérieure</td><td>4,53 m</td></tr>
-          <tr><td>Largeur (sans rétros)</td><td>1,83 m</td></tr>
-          <tr><td>Hauteur</td><td>1,66 m</td></tr>
-          <tr><td>Longueur de couchage</td><td>2,00 m</td></tr>
-          <tr><td>Largeur du lit</td><td>1,50 m</td></tr>
-          <tr><td>Hauteur sous toit (sur matelas)</td><td>0,57 m</td></tr>
+        <h2>Cotes</h2>
+        <table id="specs-vehicle">
+          <tr><td>Longueur hors tout</td><td>4,47 m</td></tr>
+          <tr><td>Largeur avec rétroviseurs</td><td>2,08 m</td></tr>
+          <tr><td>Hauteur</td><td>1,69 m</td></tr>
+          <tr><td>Plancher du coffre</td><td>0,48 m du sol</td></tr>
+          <tr><td>Largeur entre passages de roue</td><td>0,98 m</td></tr>
         </table>
+        <h2>Couchage</h2>
+        <table id="specs-layout"></table>
+        <p class="hint">Modèle 3D issu du mod GTA V « Volkswagen Touran 2012 » (SizzGamesMods), converti avec l'outil du dépôt. Cotes mesurées sur ce modèle, à vérifier sur le vrai véhicule.</p>
       </section>
     </aside>
 
