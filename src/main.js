@@ -287,12 +287,28 @@ async function renderPhoto(width, height, hour) {
   }
 }
 
+// Dans le visualiseur claude.ai, les téléchargements passent par la capacité « downloads » ;
+// ailleurs (site auto-hébergé), le lien de téléchargement classique suffit.
+const downloadsPromise = window.claude?.use ? window.claude.use('downloads').catch(() => null) : Promise.resolve(null);
+let photoBlob = null;
+photoSave.addEventListener('click', async (e) => {
+  const downloads = await downloadsPromise;
+  if (!downloads || !photoBlob) return; // lien classique
+  e.preventDefault();
+  try {
+    await downloads.save({ filename: photoSave.download, data: photoBlob });
+  } catch (err) {
+    if (err?.code !== 'declined') alert(`Enregistrement impossible : ${err?.message ?? err}`);
+  }
+});
+
 photoGo.addEventListener('click', async () => {
   const [w, h] = photoRes.value.split('x').map(Number);
   photoGo.classList.add('busy');
   photoGo.textContent = 'Rendu en cours…';
   try {
     const blob = await renderPhoto(w, h, Number(photoHour.value));
+    photoBlob = blob;
     if (photoImg.src) URL.revokeObjectURL(photoImg.src);
     const url = URL.createObjectURL(blob);
     photoImg.src = url;
