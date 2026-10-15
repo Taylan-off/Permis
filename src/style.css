@@ -237,3 +237,14 @@ label.slider input[type="range"] {
 #panel header h1 span { color: var(--muted); }
 
 .specs h2 { margin-top: 12px; }
+
+label.select { justify-content: space-between; }
+
+label.select select {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  padding: 6px 8px;
+  font-size: 13px;
+}

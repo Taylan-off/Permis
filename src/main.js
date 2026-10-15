@@ -1,13 +1,14 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { buildEnvironment } from './environment.js';
+import { buildEnvironment, PRESETS } from './environment.js';
+import { createPostFX } from './postfx.js';
 import { loadVehicle, PART_NODES } from './vehicle.js';
 import { buildInterior, layoutSpecs } from './interior.js';
 
 // ---------- Scène ----------
 const canvas = document.getElementById('scene');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.75));
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -29,29 +30,27 @@ controls.minDistance = 0.2;
 controls.maxDistance = 16;
 
 // ---------- Lumières ----------
-scene.add(new THREE.HemisphereLight('#bcd7ff', '#4a5a35', 0.55));
 const sun = new THREE.DirectionalLight('#fff4e0', 3.2);
 sun.castShadow = true;
-sun.shadow.mapSize.set(2048, 2048);
-sun.shadow.camera.left = -6;
-sun.shadow.camera.right = 6;
-sun.shadow.camera.top = 6;
-sun.shadow.camera.bottom = -6;
+sun.shadow.mapSize.set(4096, 4096);
+sun.shadow.camera.left = -5.5;
+sun.shadow.camera.right = 5.5;
+sun.shadow.camera.top = 5.5;
+sun.shadow.camera.bottom = -5.5;
+sun.shadow.radius = 4;
 sun.shadow.camera.near = 1;
 sun.shadow.camera.far = 30;
 sun.shadow.bias = -0.0004;
 sun.shadow.normalBias = 0.02;
 scene.add(sun);
-const fill = new THREE.DirectionalLight('#9bb7ff', 0.5);
-fill.position.set(-6, 4, 5);
-scene.add(fill);
 // Lumière d'habitacle pour lire l'aménagement.
-const cabin = new THREE.PointLight('#ffe9c4', 6, 4, 2);
+const cabin = new THREE.PointLight('#ffe9c4', 2, 4, 2);
 cabin.position.set(-0.8, 1.35, 0);
 scene.add(cabin);
 
 // ---------- Décor : ciel, montagnes, prairie ----------
-buildEnvironment({ scene, renderer, sun });
+const env = buildEnvironment({ scene, renderer, sun, cabin });
+const postfx = createPostFX(renderer, scene, camera);
 
 // ---------- Aménagement ----------
 const { root: interior, groups } = buildInterior();
@@ -120,6 +119,7 @@ loadVehicle((e) => {
   applyVisibility();
   applyExtension();
   v.setPaint(paintInput.value);
+  applyPreset();
   loading.classList.add('done');
 }).catch((err) => {
   loading.querySelector('p').textContent = `Impossible de charger le modèle : ${err.message}`;
@@ -169,6 +169,26 @@ extensionBox.addEventListener('change', () => {
 const paintInput = document.querySelector('[data-option="paint"]');
 paintInput.addEventListener('input', (e) => vehicle?.setPaint(e.target.value));
 document.querySelector('[data-option="xray"]').addEventListener('change', (e) => vehicle?.setXray(e.target.checked));
+
+// Ambiance, feux, qualité.
+const presetSelect = document.querySelector('[data-option="preset"]');
+const lightsBox = document.querySelector('[data-option="lights"]');
+const qualityBox = document.querySelector('[data-option="quality"]');
+function applyPreset() {
+  env.setPreset(presetSelect.value);
+  // Reflets : le décor est capturé sans la voiture ni l'aménagement.
+  const hidden = [interior];
+  if (vehicle) hidden.push(vehicle.group);
+  env.captureEnvironment(hidden);
+  vehicle?.setLights(lightsBox.checked);
+}
+presetSelect.addEventListener('change', () => {
+  lightsBox.checked = PRESETS[presetSelect.value].stars > 0 || presetSelect.value === 'evening';
+  applyPreset();
+});
+lightsBox.addEventListener('change', () => vehicle?.setLights(lightsBox.checked));
+qualityBox.addEventListener('change', () => postfx.setQuality(qualityBox.checked));
+postfx.setQuality(qualityBox.checked);
 
 const cutInput = document.querySelector('[data-option="cut"]');
 const cutValue = document.getElementById('cut-value');
@@ -261,8 +281,9 @@ function animate() {
     if (camAnim.t >= 1) camAnim = null;
   }
 
+  env.update(dt);
   controls.update();
-  renderer.render(scene, camera);
+  postfx.render();
   requestAnimationFrame(animate);
 }
 animate();
@@ -271,7 +292,8 @@ window.addEventListener('resize', () => {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
+  postfx.setSize(window.innerWidth, window.innerHeight);
 });
 
 // Accès de débogage (page measure.html et tests).
-window.__app = { THREE, scene, renderer, camera, controls, groups, get vehicle() { return vehicle; }, setOpen, goToView };
+window.__app = { THREE, scene, renderer, camera, controls, groups, env, postfx, get vehicle() { return vehicle; }, setOpen, goToView, applyPreset };

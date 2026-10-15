@@ -65,6 +65,8 @@ function upgradeMaterial(mesh) {
   const src = mesh.material;
   const shader = src.userData?.shader ?? '';
   const diffuse = src.userData?.diffuse ?? '';
+  mesh.userData.shader = shader;
+  mesh.userData.diffuse = diffuse;
 
   if (shader.startsWith('vehicle_paint')) {
     mesh.material = paintMaterial;
@@ -98,7 +100,7 @@ function upgradeMaterial(mesh) {
   if (shader.includes('emissive') && src.map) {
     m.emissiveMap = src.map;
     m.emissive = new THREE.Color('#ffffff');
-    m.emissiveIntensity = shader.includes('lights') ? 0.8 : 0.35;
+    m.emissiveIntensity = shader.includes('lights') ? 0.15 : 0.3;
   }
   if (shader.includes('tire')) m.roughness = 0.95;
   if (shader === 'vehicle_mesh' || diffuse === 'xromat') {
@@ -142,6 +144,7 @@ function splitMeshByWorldX(mesh, threshold) {
     g.computeBoundingSphere();
     const m = new THREE.Mesh(g, mesh.material);
     m.name = name;
+    m.userData = { ...mesh.userData };
     m.castShadow = true;
     m.receiveShadow = true;
     m.position.copy(mesh.position);
@@ -343,6 +346,70 @@ export async function loadVehicle(onProgress) {
   group.traverse((o) => { if (o.isMesh) meshes.push(o); });
   for (const m of meshes) m.userData.baseMaterial = m.material;
 
+  // ── Feux ────────────────────────────────────────────────────────────────
+  // Classement des maillages émissifs d'après le nœud (os) qui les porte.
+  const lightMeshes = { head: [], tail: [], plate: [], fog: [], dash: [] };
+  for (const m of meshes) {
+    const shader = m.userData.shader ?? '';
+    if (!shader.includes('emissive') && !(shader.includes('glass') && m.userData.diffuse === 'redglass')) continue;
+    const owner = m.parent?.name ?? '';
+    if (owner.startsWith('headlight')) lightMeshes.head.push(m);
+    else if (owner.startsWith('taillight') || owner.startsWith('brakelight')) lightMeshes.tail.push(m);
+    else if (owner.startsWith('platelight')) lightMeshes.plate.push(m);
+    else if (owner.startsWith('extralight')) lightMeshes.fog.push(m);
+    else if (owner === 'dials' || m.userData.shader.includes('dash')) lightMeshes.dash.push(m);
+  }
+  for (const list of Object.values(lightMeshes)) {
+    for (const m of list) if (m.material.userData.shared !== false) { m.material = m.material.clone(); m.material.userData.shared = false; m.userData.baseMaterial = m.material; }
+  }
+
+  const lights = new THREE.Group();
+  lights.name = 'lights';
+  group.add(lights);
+  const worldCenter = (node) => new THREE.Box3().setFromObject(node).getCenter(new THREE.Vector3());
+  const headPos = ['headlight_l', 'headlight_r'].map((n) => nodes[n] && worldCenter(nodes[n])).filter(Boolean);
+  const tailPos = ['taillight_l', 'taillight_r'].map((n) => nodes[n] && worldCenter(nodes[n])).filter(Boolean);
+
+  // Faisceau lumineux visible : cône additif dégradé (alpha par sommet).
+  const beamGeo = new THREE.ConeGeometry(1.7, 10, 28, 1, true);
+  beamGeo.translate(0, -5, 0);
+  beamGeo.rotateZ(Math.PI / 2);
+  {
+    const pos = beamGeo.attributes.position;
+    const col = new Float32Array(pos.count * 4);
+    for (let i = 0; i < pos.count; i++) {
+      const t = Math.min(1, Math.max(0, pos.getX(i) / 10));
+      const a = 0.11 * Math.pow(1 - t, 2.6);
+      col.set([1, 0.93, 0.75, a], i * 4);
+    }
+    beamGeo.setAttribute('color', new THREE.BufferAttribute(col, 4));
+  }
+  const beamMat = new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: false });
+
+  const spots = [];
+  const beams = [];
+  for (const hp of headPos) {
+    const spot = new THREE.SpotLight('#fff1d2', 90, 48, 0.52, 0.55, 1.3);
+    spot.position.copy(hp);
+    spot.target.position.set(hp.x + 16, hp.y - 1.6, hp.z);
+    lights.add(spot, spot.target);
+    spots.push(spot);
+    const beam = new THREE.Mesh(beamGeo, beamMat);
+    beam.position.copy(hp);
+    beam.rotation.z = -0.07;
+    beam.renderOrder = 5;
+    lights.add(beam);
+    beams.push(beam);
+  }
+  const glows = [];
+  for (const tp of tailPos) {
+    const glow = new THREE.PointLight('#ff2a1a', 2.5, 3.5, 1.5);
+    glow.position.copy(tp).add(new THREE.Vector3(-0.15, 0, 0));
+    lights.add(glow);
+    glows.push(glow);
+  }
+  let lightsOn = false;
+
   const api = {
     group,
     root,
@@ -368,6 +435,34 @@ export async function loadVehicle(onProgress) {
     setXray(enabled) {
       for (const m of meshes) m.material = enabled ? xrayMaterial : m.userData.baseMaterial;
     },
+
+    /** Allume ou éteint phares, feux arrière, plaque, antibrouillards et tableau de bord. */
+    setLights(on, { beams: showBeams = true } = {}) {
+      lightsOn = on;
+      const set = (list, color, intensity) => {
+        for (const m of list) {
+          const mat = m.material;
+          if (!mat.emissive) continue;
+          mat.emissive.set(on ? color : '#ffffff');
+          mat.emissiveIntensity = on ? intensity : 0.12;
+        }
+      };
+      set(lightMeshes.head, '#fff6e2', 9);
+      set(lightMeshes.fog, '#fff0cc', 4);
+      set(lightMeshes.plate, '#ffffff', 2.5);
+      set(lightMeshes.dash, '#ffffff', 1.2);
+      for (const m of lightMeshes.tail) {
+        const mat = m.material;
+        if (!mat.emissive) continue;
+        mat.emissive.set('#ff2020');
+        mat.emissiveIntensity = on ? 4.5 : 0.15;
+      }
+      for (const sp of spots) sp.visible = on;
+      for (const g of glows) g.visible = on;
+      for (const b of beams) b.visible = on && showBeams;
+    },
+
+    get lightsOn() { return lightsOn; },
 
     setPaint(hex) {
       paintMaterial.color.set(hex);

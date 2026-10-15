@@ -61,6 +61,15 @@
           <button data-view="tailgate">Par le hayon</button>
           <button data-view="inside">Allongé dans le lit</button>
         </div>
+        <label class="select">Ambiance
+          <select data-option="preset">
+            <option value="evening" selected>Fin de journée</option>
+            <option value="day">Journée</option>
+            <option value="night">Nuit</option>
+          </select>
+        </label>
+        <label><input type="checkbox" data-option="lights" checked /> Feux allumés</label>
+        <label><input type="checkbox" data-option="quality" checked /> Qualité élevée (occlusion, bloom)</label>
         <label class="slider">
           <span>Coupe horizontale <output id="cut-value">off</output></span>
           <input type="range" data-option="cut" min="0" max="170" value="0" step="1" />
