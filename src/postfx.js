@@ -36,7 +36,7 @@ export function createPostFX(renderer, scene, camera) {
   gtao.blendIntensity = 0.9;
   composer.addPass(gtao);
 
-  const bloom = new UnrealBloomPass(new THREE.Vector2(size.x, size.y), 0.5, 0.65, 1.0);
+  const bloom = new UnrealBloomPass(new THREE.Vector2(size.x, size.y), 0.45, 0.6, 1.7);
   composer.addPass(bloom);
 
   composer.addPass(new OutputPass());

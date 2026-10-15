@@ -25,7 +25,7 @@ const MEADOW_RADIUS = 70;
 const TREE_COUNT = 1100;
 const GRASS_COUNT = 16000;
 const ROCK_COUNT = 220;
-const LAKE = { x: -95, z: 118, rx: 62, rz: 44, depth: -4.5, level: -1.0 };
+const LAKE = { x: -82, z: 98, rx: 52, rz: 38, depth: -4.5, level: -1.0 };
 
 // Générateur pseudo-aléatoire déterministe : le décor est identique à chaque visite.
 function mulberry32(seed) {
@@ -76,9 +76,12 @@ export function heightAt(x, z) {
   let h = hills * hillMask + ridge * mountainMask * (1 - 0.3 * smoothstep(0.9, 1.4, lakeDistance(x, z)) * 0) + wall;
   const meadow = 1 - smoothstep(14, MEADOW_RADIUS, r);
   h = lerp(h, -0.3, meadow);
+  // Fond de vallée autour du lac : les collines s'effacent, puis le bassin se creuse.
   const d = lakeDistance(x, z);
-  if (d < 1.4) {
-    const basin = lerp(LAKE.depth + fbm(x, z, 2, 1 / 20) * 0.6, h, smoothstep(0.6, 1.4, d));
+  if (d < 2.6) {
+    const floor = Math.min(Math.max(h, LAKE.level + 1.2), 1.5 + fbm(x + 40, z - 60, 2, 1 / 30) * 1.0);
+    h = lerp(floor, h, smoothstep(1.5, 2.6, d));
+    const basin = lerp(LAKE.depth + fbm(x, z, 2, 1 / 20) * 0.6, h, smoothstep(0.55, 1.35, d));
     h = Math.min(h, basin);
   }
   return h;
@@ -320,7 +323,7 @@ function treeSpot() {
   const x = Math.cos(a) * r;
   const z = Math.sin(a) * r;
   const h = heightAt(x, z);
-  if (h > 140 || h < LAKE.level + 0.6) return null;
+  if (h > 140 || h < LAKE.level + 0.6 || lakeDistance(x, z) < 1.45) return null;
   const dx = heightAt(x + 2, z) - heightAt(x - 2, z);
   const dz = heightAt(x, z + 2) - heightAt(x, z - 2);
   if (Math.hypot(dx, dz) / 4 > 0.7) return null;
@@ -355,7 +358,7 @@ function buildRocks() {
     const x = Math.cos(a) * r;
     const z = Math.sin(a) * r;
     const h = heightAt(x, z);
-    if (h < LAKE.level + 0.3) return null;
+    if (h < LAKE.level + 0.3 || lakeDistance(x, z) < 1.3) return null;
     const scale = 0.35 + Math.pow(random(), 2) * 3.2;
     return { x, y: h - scale * 0.35, z, rotY: random() * Math.PI, tiltX: (random() - 0.5) * 0.6, tiltZ: (random() - 0.5) * 0.6, sx: scale * (0.8 + random() * 0.6), sy: scale * (0.6 + random() * 0.5), sz: scale };
   });
@@ -422,7 +425,7 @@ export const PRESETS = {
     hemi: { sky: '#bcd7ff', ground: '#4a5a35', intensity: 0.5 },
     fog: { color: '#c7d6e4', near: 90, far: 650 },
     sky: { turbidity: 3.5, rayleigh: 1.6, mie: 0.004, mieG: 0.82 },
-    exposure: 0.8, envIntensity: 0.9, stars: 0, water: '#1f4f5e', cabin: 1.5,
+    exposure: 0.8, envIntensity: 0.9, stars: 0, water: '#1f4f5e', cabin: 0.8,
   },
   evening: {
     label: 'Fin de journée',
@@ -431,7 +434,7 @@ export const PRESETS = {
     hemi: { sky: '#8c9fd0', ground: '#4a3c2a', intensity: 0.45 },
     fog: { color: '#d6b08a', near: 60, far: 520 },
     sky: { turbidity: 9, rayleigh: 3.2, mie: 0.02, mieG: 0.86 },
-    exposure: 0.95, envIntensity: 0.85, stars: 0.25, water: '#2a4a5a', cabin: 2.5,
+    exposure: 0.95, envIntensity: 0.85, stars: 0.25, water: '#2a4a5a', cabin: 1.6,
   },
   night: {
     label: 'Nuit',
@@ -440,7 +443,7 @@ export const PRESETS = {
     hemi: { sky: '#1b2644', ground: '#0a0c10', intensity: 0.12 },
     fog: { color: '#0b1020', near: 40, far: 420 },
     sky: { turbidity: 2, rayleigh: 0.6, mie: 0.002, mieG: 0.7 },
-    exposure: 1.15, envIntensity: 0.6, stars: 1, water: '#0a1a28', cabin: 4,
+    exposure: 1.15, envIntensity: 0.6, stars: 1, water: '#0a1a28', cabin: 3,
   },
 };
 
