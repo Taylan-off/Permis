@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Touran Camper 3D</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='2' y='10' width='28' height='12' rx='3' fill='%232b5797'/%3E%3Ccircle cx='9' cy='23' r='4' fill='%23222'/%3E%3Ccircle cx='23' cy='23' r='4' fill='%23222'/%3E%3C/svg%3E" />
+    <link rel="stylesheet" href="./src/style.css" />
+  </head>
+  <body>
+    <canvas id="scene"></canvas>
+
+    <aside id="panel">
+      <header>
+        <h1>VW Touran <span>aménagé pour dormir</span></h1>
+        <p class="hint">Clique sur une porte ou le hayon dans la 3D pour l'ouvrir. Glisse pour tourner, molette pour zoomer.</p>
+      </header>
+
+      <section>
+        <h2>Ouvrants</h2>
+        <div class="grid">
+          <button data-toggle="doorFL">Porte AV gauche</button>
+          <button data-toggle="doorFR">Porte AV droite</button>
+          <button data-toggle="doorRL">Porte AR gauche</button>
+          <button data-toggle="doorRR">Porte AR droite</button>
+          <button data-toggle="tailgate" class="wide">Hayon</button>
+        </div>
+        <div class="row">
+          <button data-action="openAll">Tout ouvrir</button>
+          <button data-action="closeAll">Tout fermer</button>
+        </div>
+      </section>
+
+      <section>
+        <h2>Aménagement</h2>
+        <label><input type="checkbox" data-show="rearSeats" /> Sièges arrière d'origine</label>
+        <label><input type="checkbox" data-show="bed" checked /> Plateforme de lit</label>
+        <label><input type="checkbox" data-show="mattress" checked /> Matelas et couchage</label>
+        <label><input type="checkbox" data-show="kitchen" checked /> Module cuisine (tiroir)</label>
+        <label><input type="checkbox" data-show="storage" checked /> Rangements sous le lit</label>
+        <div class="row">
+          <button data-toggle="kitchenDrawer">Sortir / rentrer la cuisine</button>
+        </div>
+      </section>
+
+      <section>
+        <h2>Vue</h2>
+        <div class="grid">
+          <button data-view="front">3/4 avant</button>
+          <button data-view="rear">3/4 arrière</button>
+          <button data-view="side">Profil</button>
+          <button data-view="top">Dessus</button>
+          <button data-view="inside" class="wide">Intérieur (couchage)</button>
+        </div>
+        <label><input type="checkbox" data-option="xray" /> Carrosserie transparente</label>
+        <label><input type="checkbox" data-option="roof" /> Masquer le toit</label>
+        <label class="color">Couleur <input type="color" data-option="paint" value="#2b5797" /></label>
+      </section>
+
+      <section class="specs">
+        <h2>Cotes utiles</h2>
+        <table>
+          <tr><td>Longueur extérieure</td><td>4,53 m</td></tr>
+          <tr><td>Largeur (sans rétros)</td><td>1,83 m</td></tr>
+          <tr><td>Hauteur</td><td>1,66 m</td></tr>
+          <tr><td>Longueur de couchage</td><td>2,00 m</td></tr>
+          <tr><td>Largeur du lit</td><td>1,50 m</td></tr>
+          <tr><td>Hauteur sous toit (sur matelas)</td><td>0,57 m</td></tr>
+        </table>
+      </section>
+    </aside>
+
+    <button id="panel-toggle" aria-label="Afficher / masquer le panneau">☰</button>
+
+    <script type="module" src="./src/main.js"></script>
+  </body>
+</html>
